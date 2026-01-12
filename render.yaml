@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: cozyasia-villa-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      # Required
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: WEBHOOK_BASE
+        sync: false
+
+      # Google Sheets (Leads)
+      - key: GOOGLE_SHEET_ID
+        value: 1-Xwf-gF_90U9xFqgYPmfXiqdEkyxSZwkxSr0aeKEmMU
+      - key: GOOGLE_WORKSHEET_NAME
+        value: Leads
+      - key: GOOGLE_CREDS_JSON
+        sync: false
+
+      # Notifications (channel/group or numeric chat_id)
+      - key: GROUP_CHAT_TARGET
+        value: "@Cozy_asia"
+
+      # Optional: AI chat
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
