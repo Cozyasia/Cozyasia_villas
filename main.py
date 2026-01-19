@@ -74,7 +74,7 @@ def _log_openai_env():
         key_type = "project-key" if OPENAI_API_KEY.startswith("sk-proj-") else "user-key"
         log.info("OpenAI ready | type=%s | model=%s | project=%s | org=%s",
                  key_type, OPENAI_MODEL, (OPENAI_PROJECT or "—"), (OPENAI_ORG or "—"))
-        if OPENAI_API_KEY.startswith("sk-proj-") and not OPENAI_PROJECT:
+        if OPENAI_API_KEY.startswith("skl-proj-") and not OPENAI_PROJECT:
             log.warning("You are using project-key but OPENAI_PROJECT is empty (proj_...).")
     except Exception as e:
         log.error("Failed to import openai: %s", e)
@@ -176,6 +176,7 @@ RESOURCES_HTML = (
     "📸 Instagram — <a href='https://www.instagram.com/cozy.asia'>@cozy.asia</a>\n"
 )
 
+# УБРАЛИ КОНТАКТ АЛЕКСЕЯ ИЗ ФИНАЛЬНОГО СООБЩЕНИЯ
 RESOURCES_AFTER_SURVEY_HTML = (
     "<b>📎 Наши ресурсы</b>\n\n"
     "🌐 Web site — <a href='http://cozy-asiath.com/'>cozy-asiath.com</a>\n"
@@ -184,8 +185,7 @@ RESOURCES_AFTER_SURVEY_HTML = (
     "📸 Instagram — <a href='https://www.instagram.com/cozy.asia'>@cozy.asia</a>\n\n"
     "<b>Ваша заявка сформирована и передана менеджерам.</b>\n"
     "Для оперативной связи переходите в чат с менеджером:\n"
-    "@cozy_asia — Сергей\n"
-    "@Aleksei_Lucky — Алексей"
+    "@cozy_asia — Сергей"
 )
 
 SHOW_LINKS_INTERVAL = 12 * 3600  # 12 hours
