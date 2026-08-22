@@ -292,6 +292,11 @@ def apply(c):
 
         rows = _fresh(all_rows)
         types = [c.norm_type(x) for x in spec.get("types", []) if c.norm_type(x)]
+        allowed_types = set(types)
+        # In rental requests users often say "дом" generically; villas, bungalows
+        # and townhouses should not disappear from an otherwise matching result set.
+        if "дом" in allowed_types:
+            allowed_types.update({"вилла", "бунгало", "таунхаус"})
         districts = [
             c.norm_district(x)
             for x in spec.get("districts", [])
@@ -322,8 +327,8 @@ def apply(c):
             row_pool = c.norm_pool(r.get("бассейн"))
             row_pets = c.norm_pets(r.get("питомцы"))
 
-            if types:
-                if typ not in types:
+            if allowed_types:
+                if typ not in allowed_types:
                     return None
                 sc += 4
 
