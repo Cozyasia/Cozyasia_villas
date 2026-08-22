@@ -10,9 +10,36 @@ def apply(c):
 
     def extract_lot_id(text):
         norm = c._digits(text or "")
-        head = "\n".join([x.strip() for x in norm.splitlines()[:30] if x.strip()][:15])
-        # Legacy Cozy Asia IDs: 01-001, 01-008-2, 01-1060.
-        m = re.search(r"(?<!\d)0*1\s*-\s*0*(\d{1,7})(?:\s*-\s*0*(\d{1,3}))?(?!\d)", head)
+        lines = [x.strip() for x in norm.splitlines()[:35] if x.strip()]
+        # Telegram web often splits emoji digits into separate lines:
+        # 0 / 1 / - / 1 / 0 / 6 / 0   => legacy 01-1060
+        # 0 / 1 / - / 0 / 0 / 8 / - / 2 => legacy 01-008-2
+        for i, line in enumerate(lines[:18]):
+            if line != "-":
+                continue
+            before = []
+            j = i - 1
+            while j >= 0 and re.fullmatch(r"\d", lines[j]):
+                before.append(lines[j]); j -= 1
+            before = list(reversed(before))
+            after = []
+            j = i + 1
+            while j < len(lines) and re.fullmatch(r"\d", lines[j]):
+                after.append(lines[j]); j += 1
+            prefix = "".join(before)
+            main = "".join(after)
+            if prefix in {"01", "1"} and len(main) >= 3:
+                suffix = ""
+                if j < len(lines) and lines[j] == "-":
+                    k = j + 1; tail = []
+                    while k < len(lines) and re.fullmatch(r"\d", lines[k]):
+                        tail.append(lines[k]); k += 1
+                    suffix = "".join(tail).lstrip("0")
+                base = main.lstrip("0") or "0"
+                return f"{base}-{suffix}" if suffix else base
+        # Same legacy form when Telegram leaves the digits on one line.
+        head = "\n".join(lines[:18])
+        m = re.search(r"(?<!\d)0*1\s*-\s*0*(\d{3,7})(?:\s*-\s*0*(\d{1,3}))?(?!\d)", head)
         if m:
             base = m.group(1).lstrip("0") or "0"
             suffix = (m.group(2) or "").lstrip("0")
@@ -44,7 +71,6 @@ def apply(c):
     def canonical(rec, source=""):
         out = original_canonical(rec, source)
         if source:
-            # Always recompute legacy lot ID from the source, so 01-008-2 stays distinct from 01-008.
             lot = extract_lot_id(source)
             if lot:
                 out["lot_id"] = lot
@@ -60,7 +86,6 @@ def apply(c):
             if pt:
                 out["тип_бассейна"] = pt
                 out["бассейн"] = "yes"
-            # Add frequent district spellings missed by older extractor output.
             low = str(out.get("район") or "").lower().strip()
             aliases = {
                 "huathanon": "Хуа Танон", "hua tanon": "Хуа Танон", "naton": "Натон",
