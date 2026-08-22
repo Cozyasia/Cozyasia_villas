@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Production entrypoint: legacy Cozy Asia bot + property catalog."""
+import json
 import logging
+import os
 import threading
 
 from telegram.ext import CommandHandler, MessageHandler, filters
@@ -9,6 +11,22 @@ import legacy_main as legacy
 import cozy_catalog
 
 log = logging.getLogger("villa-bot-wrapper")
+
+
+def _log_google_service_account():
+    raw = os.environ.get("GOOGLE_CREDS_JSON", "").strip()
+    if not raw:
+        log.warning("Google service account email unavailable: GOOGLE_CREDS_JSON is empty")
+        return
+    try:
+        info = json.loads(raw)
+        email = (info.get("client_email") or "").strip()
+        if email:
+            log.info("Google service account email: %s", email)
+        else:
+            log.warning("Google service account email missing in JSON")
+    except Exception:
+        log.exception("Could not parse GOOGLE_CREDS_JSON for client_email")
 
 
 def _bootstrap_catalog():
@@ -35,6 +53,7 @@ def _install_catalog_handlers(app):
 def main():
     legacy._log_openai_env()
     legacy._probe_openai()
+    _log_google_service_account()
 
     app = legacy.build_application()
     _install_catalog_handlers(app)
