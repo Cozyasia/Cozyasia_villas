@@ -61,6 +61,16 @@ def apply(c):
             return exact[low]
         return original_norm_district(s)
 
+    def dmatch(rd, wanted):
+        rd = norm_district(rd)
+        if not rd:
+            return False
+        for item in wanted:
+            w = norm_district(item)
+            if w and (w in rd or rd in w):
+                return True
+        return False
+
     def _clean_lot_token(token):
         token = re.sub(r"\s+", "", str(token or ""))
         token = token.strip("-")
@@ -376,6 +386,7 @@ def apply(c):
     # Patch module globals used by the base functions.
     c._blank = blank
     c.norm_district = norm_district
+    c._dmatch = dmatch
     c.extract_lot_id = extract_lot_id
     c.canonical = canonical
     c.parse_property_query = parse_property_query
