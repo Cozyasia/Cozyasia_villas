@@ -7,7 +7,12 @@ import logging
 from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 log = logging.getLogger("emoji-calibration")
-BASE_LABELS = ["Л", "О", "Т", "№", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+# Russian letters cover both "ЛОТ" and "ОСТАВИТЬ ЗАЯВКУ".
+BASE_LABELS = [
+    "Л", "О", "Т", "№",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "С", "А", "В", "И", "Ь", "З", "Я", "К", "У",
+]
 DEFAULT_SUFFIX_LABELS = ["A", "I", "J", "S"]
 
 
