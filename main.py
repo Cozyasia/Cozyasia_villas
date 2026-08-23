@@ -14,6 +14,7 @@ import legacy_main as legacy
 import cozy_catalog
 import catalog_fixes
 import catalog_feedback_patch
+import lot_id_repair
 import post_standardizer
 import post_template_patch
 import post_throttle_patch
@@ -27,6 +28,7 @@ import manual_edit_guard
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
+lot_id_repair.apply(cozy_catalog)
 post_template_patch.apply(post_standardizer)
 post_throttle_patch.apply(post_standardizer)
 post_layout_v5.apply(post_standardizer, post_throttle_patch)
@@ -170,6 +172,12 @@ def main():
     legacy._log_openai_env()
     legacy._probe_openai()
     _log_google_service_account()
+    # Repair all lot IDs before any fresh channel import can compare/update rows.
+    try:
+        repair_stats = lot_id_repair.repair_sheet(cozy_catalog)
+        log.info("Lot ID repair complete: %s", repair_stats)
+    except Exception:
+        log.exception("Lot ID repair failed")
     legacy.cmd_start = smart_start
     legacy.free_text = catalog_aware_free_text
     app = legacy.build_application()
