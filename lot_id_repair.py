@@ -57,6 +57,7 @@ def _valid_existing_lot(value: str) -> bool:
 def apply(catalog):
     original_extract = catalog.extract_lot_id
     original_record = catalog._record
+    original_canonical = catalog.canonical
 
     def robust(text):
         raw = text or ""
@@ -65,6 +66,15 @@ def apply(catalog):
         if found:
             return found
         return original_extract(raw)
+
+    def stable_canonical(rec, source=""):
+        # A confirmed lot_id already stored against a Telegram message is authoritative.
+        # Never let a reformatted/custom-emoji source text collapse it to 0/1.
+        existing = str((rec or {}).get("lot_id") or "").strip()
+        out = original_canonical(rec, source)
+        if _valid_existing_lot(existing):
+            out["lot_id"] = existing
+        return out
 
     def stable_record(p, old=None):
         rec = original_record(p, old)
@@ -75,8 +85,9 @@ def apply(catalog):
         return rec
 
     catalog.extract_lot_id = robust
+    catalog.canonical = stable_canonical
     catalog._record = stable_record
-    log.info("Robust emoji lot parser + immutable known-message lot IDs installed")
+    log.info("Robust emoji lot parser + immutable canonical/record lot IDs installed")
 
 
 def _original_backup_by_mid(catalog):
@@ -97,6 +108,19 @@ def _original_backup_by_mid(catalog):
                 out[mid] = text
     except Exception:
         log.exception("Could not read original PostBackup texts")
+    return out
+
+
+def authoritative_lots_by_mid(catalog):
+    """Return message_id -> lot_id parsed only from the first/original PostBackup text."""
+    out = {}
+    for mid, text in _original_backup_by_mid(catalog).items():
+        try:
+            lot = catalog.extract_lot_id(text)
+        except Exception:
+            lot = ""
+        if _valid_existing_lot(lot):
+            out[mid] = str(lot).strip()
     return out
 
 
