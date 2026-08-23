@@ -78,3 +78,14 @@ def install(app, catalog):
 
     app.add_handler(MessageHandler(filters.ALL, capture), group=-60)
     log.info("Channel Premium emoji capture installed for @%s", catalog.CATALOG_CHANNEL)
+
+    # MTProto user-client is installed here because this install() already has
+    # access to both the Telegram Application and the catalog configuration.
+    # It stays inert until MT_API_ID / MT_API_HASH are configured and the owner
+    # completes one QR authorization from a private bot chat.
+    try:
+        import mtproto_user_client
+        mtproto_user_client.install(app, catalog)
+        mtproto_user_client.ensure_daemon_started(catalog)
+    except Exception:
+        log.exception("Could not install MTProto Premium user-client")
