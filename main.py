@@ -20,8 +20,7 @@ import post_template_patch
 import post_throttle_patch
 import post_layout_v5
 import post_layout_v6_premium
-import premium_smoke_test
-import premium_lot_corrective
+import post_layout_v7_safe
 import emoji_calibration
 import template_capture_mode
 import channel_template_capture
@@ -34,6 +33,9 @@ post_template_patch.apply(post_standardizer)
 post_throttle_patch.apply(post_standardizer)
 post_layout_v5.apply(post_standardizer, post_throttle_patch)
 post_layout_v6_premium.apply(post_standardizer, post_throttle_patch)
+# V7 is the production channel layout. It intentionally overrides V6 because
+# our bot cannot render Premium custom emoji entities inside channel posts.
+post_layout_v7_safe.apply(post_standardizer, post_throttle_patch)
 manual_edit_guard.apply(post_standardizer)
 
 log = logging.getLogger("villa-bot-wrapper")
@@ -126,23 +128,6 @@ def _standardize_existing():
     except Exception:log.exception("Existing post standardization failed")
 
 
-def _premium_smoke():
-    try:
-        time.sleep(8); premium_smoke_test.run(post_standardizer,cozy_catalog)
-    except Exception:log.exception("Premium V6 smoke test crashed")
-
-
-def _premium_lot_corrective():
-    # Run after the resumable standardizer has had time to finish its small remainder.
-    # It is idempotent and repairs only V6 posts whose rendered lot differs from
-    # the original PostBackup authority.
-    try:
-        time.sleep(20)
-        stats=premium_lot_corrective.run(post_standardizer,cozy_catalog)
-        log.info("Premium lot corrective result: %s",stats)
-    except Exception:log.exception("Premium lot corrective crashed")
-
-
 def _install_catalog_handlers(app):
     template_capture_mode.install(app,cozy_catalog); channel_template_capture.install(app,cozy_catalog); emoji_calibration.install(app,cozy_catalog)
     app.add_handler(CommandHandler("catalog_import",cozy_catalog.cmd_catalog_import),group=-20)
@@ -155,8 +140,6 @@ def _install_catalog_handlers(app):
 
 def main():
     legacy._log_openai_env(); legacy._probe_openai(); _log_google_service_account()
-    # Critical ordering: normalize first, then restore authoritative lot IDs from the
-    # original PostBackup. Stable canonical protection prevents future 0/1 collapse.
     try:
         norm_stats=cozy_catalog.normalize_existing_rows(); log.info("Pre-repair normalize complete: %s",norm_stats)
     except Exception:log.exception("Pre-repair normalize failed")
@@ -167,8 +150,6 @@ def main():
     app=legacy.build_application(); _install_catalog_handlers(app)
     threading.Thread(target=_bootstrap_catalog,name="catalog-bootstrap",daemon=True).start()
     threading.Thread(target=_standardize_existing,name="post-standardizer",daemon=True).start()
-    threading.Thread(target=_premium_smoke,name="premium-smoke",daemon=True).start()
-    threading.Thread(target=_premium_lot_corrective,name="premium-lot-corrective",daemon=True).start()
     legacy.run_webhook(app)
 
 if __name__=="__main__":main()
