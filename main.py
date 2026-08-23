@@ -12,11 +12,13 @@ from telegram.ext import CommandHandler, ConversationHandler, MessageHandler, fi
 import legacy_main as legacy
 import cozy_catalog
 import catalog_fixes
+import catalog_feedback_patch
 import post_standardizer
 import post_template_patch
 import post_throttle_patch
 
 catalog_fixes.apply(cozy_catalog)
+catalog_feedback_patch.apply(cozy_catalog)
 post_template_patch.apply(post_standardizer)
 post_throttle_patch.apply(post_standardizer)
 
