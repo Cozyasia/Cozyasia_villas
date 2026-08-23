@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """Capture Telegram Premium Custom Emoji IDs for the Cozy Asia listing alphabet."""
+import asyncio
 import json
 import logging
 
 from telegram.ext import ApplicationHandlerStop, CommandHandler, MessageHandler, filters
 
 log = logging.getLogger("emoji-calibration")
-LABELS = ["Л", "О", "Т", "№", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "I", "J", "S"]
+BASE_LABELS = ["Л", "О", "Т", "№", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+DEFAULT_SUFFIX_LABELS = ["A", "I", "J", "S"]
 
 
 def _custom_entities(msg):
@@ -32,13 +34,30 @@ def _store(catalog, mapping):
     ws.append_rows(rows, value_input_option="RAW")
 
 
+def _suffixes_from_args(args):
+    raw = []
+    for item in args or []:
+        raw.extend(x for x in item.replace(",", " ").replace(";", " ").split() if x)
+    if not raw:
+        return DEFAULT_SUFFIX_LABELS[:]
+    out = []
+    for x in raw:
+        up = x.strip().upper()
+        if up and up not in out:
+            out.append(up)
+    return out
+
+
 def install(app, catalog):
     async def start(update, context):
+        suffixes = _suffixes_from_args(context.args)
+        labels = BASE_LABELS + suffixes
         context.user_data["emoji_calibration_waiting"] = True
+        context.user_data["emoji_calibration_labels"] = labels
         await update.effective_message.reply_text(
-            "Отправьте ОДНИМ следующим сообщением 18 Premium Custom Emoji строго в таком порядке:\n"
-            "Л О Т № 0 1 2 3 4 5 6 7 8 9 A I J S\n\n"
-            "Важно: именно эмодзи из нужного набора, а не обычные буквы/цифры."
+            f"Отправьте ОДНИМ следующим сообщением {len(labels)} Premium Custom Emoji строго в таком порядке:\n"
+            + " ".join(labels)
+            + "\n\nВажно: именно эмодзи из нужного набора, а не обычные буквы/цифры."
         )
         raise ApplicationHandlerStop
 
@@ -46,19 +65,18 @@ def install(app, catalog):
         if not context.user_data.get("emoji_calibration_waiting"):
             return
         msg = update.effective_message
+        labels = list(context.user_data.get("emoji_calibration_labels") or (BASE_LABELS + DEFAULT_SUFFIX_LABELS))
         ids = _custom_entities(msg) if msg else []
-        if len(ids) != len(LABELS):
+        if len(ids) != len(labels):
             await msg.reply_text(
-                f"Получил {len(ids)} custom emoji из {len(LABELS)}. Нужны ровно 18 в порядке:\n"
-                "Л О Т № 0 1 2 3 4 5 6 7 8 9 A I J S"
+                f"Получил {len(ids)} custom emoji из {len(labels)}. Нужны ровно {len(labels)} в порядке:\n"
+                + " ".join(labels)
             )
             raise ApplicationHandlerStop
-        mapping = dict(zip(LABELS, ids))
-        await context.application.run_in_thread(_store, catalog, mapping) if hasattr(context.application, "run_in_thread") else None
-        if not hasattr(context.application, "run_in_thread"):
-            import asyncio
-            await asyncio.to_thread(_store, catalog, mapping)
+        mapping = dict(zip(labels, ids))
+        await asyncio.to_thread(_store, catalog, mapping)
         context.user_data.pop("emoji_calibration_waiting", None)
+        context.user_data.pop("emoji_calibration_labels", None)
         log.info("Premium emoji map captured: %s", json.dumps(mapping, ensure_ascii=False))
         await msg.reply_text("✅ Premium Emoji набор сохранён. Можно использовать его для оформления лотов.")
         raise ApplicationHandlerStop
