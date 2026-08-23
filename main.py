@@ -16,11 +16,13 @@ import catalog_feedback_patch
 import post_standardizer
 import post_template_patch
 import post_throttle_patch
+import post_layout_v5
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
 post_template_patch.apply(post_standardizer)
 post_throttle_patch.apply(post_standardizer)
+post_layout_v5.apply(post_standardizer, post_throttle_patch)
 
 log = logging.getLogger("villa-bot-wrapper")
 _original_free_text = legacy.free_text
