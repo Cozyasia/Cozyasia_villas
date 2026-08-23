@@ -21,8 +21,9 @@ def _emoji_lot(value):
 
 
 def apply(mod, throttle):
-    # This marker is used by future-post protection and by the resumable migration
-    # to distinguish the new V5 layout from the previous compact V4 layout.
+    # Force this one historical pass from code. The V5 DONE marker below makes
+    # subsequent restarts no-ops, so this cannot endlessly rewrite old posts.
+    mod.RUN_EXISTING = True
     mod.MARKER = "📝✨ ОСТАВИТЬ ЗАЯВКУ"
     throttle.DONE_MARKER = "__STANDARDIZATION_DONE_V5__"
     throttle.OK_PREFIX = "__STD_V5__:"
