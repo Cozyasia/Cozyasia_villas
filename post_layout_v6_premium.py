@@ -39,9 +39,9 @@ CTA_IDS = {
     "К": "5456289915551622074",
     "У": "5188633966051076002",
 }
-DESC_ID = "5474587738952975936"  # reference Premium 💬
-RIGHT_ID = "5471978009449731768"  # reference Premium 👉
-LEFT_ID = "5469735272017043817"   # reference Premium 👈
+DESC_ID = "5474587738952975936"
+RIGHT_ID = "5471978009449731768"
+LEFT_ID = "5469735272017043817"
 
 
 def _tg(cid: str, fallback: str) -> str:
@@ -71,8 +71,6 @@ def _premium_lot(lot: str) -> str:
             fallback = "➖" if key == "-" else key + "\ufe0f\u20e3"
             rendered.append(_tg(cid, fallback))
         else:
-            # Owner suffix is deliberately not invented. If a known suffix is later
-            # restored in the catalog it can be mapped separately.
             rendered.append(html.escape(ch))
     return prefix + "".join(rendered)
 
@@ -84,8 +82,9 @@ def _clean_details(value: str) -> str:
 
 
 def apply(mod, throttle):
-    mod.RUN_EXISTING = True
-    # This marker exists in the captured reference and is absent from V5 posts.
+    # Historical V6 is paused until a one-message smoke test confirms Telegram
+    # accepts these captured Premium Custom Emoji IDs from the bot in the channel.
+    mod.RUN_EXISTING = False
     mod.MARKER = "💬 ОПИСАНИЕ"
     throttle.DONE_MARKER = "__STANDARDIZATION_DONE_V6_PREMIUM__"
     throttle.OK_PREFIX = "__STD_V6_PREMIUM__:"
@@ -137,17 +136,11 @@ def apply(mod, throttle):
                 lines.append(f'<a href="{html.escape(href, quote=True)}">{mod._esc(title)}</a>')
             if tags_text:
                 lines += ["", mod._esc(tags_text)]
-
             cta1 = _premium_word("ОСТАВИТЬ", CTA_IDS)
             cta2 = _premium_word("ЗАЯВКУ", CTA_IDS)
-            right = _tg(RIGHT_ID, "👉")
-            left = _tg(LEFT_ID, "👈")
             lines += [
-                "",
-                cta1,
-                cta2,
-                "",
-                f'{right} <a href="{html.escape(rent, quote=True)}"><b>ЖМИ ЗДЕСЬ</b></a> {left}',
+                "", cta1, cta2, "",
+                f'{_tg(RIGHT_ID, "👉")} <a href="{html.escape(rent, quote=True)}"><b>ЖМИ ЗДЕСЬ</b></a> {_tg(LEFT_ID, "👈")}',
                 "",
                 f'🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href="{html.escape(search, quote=True)}"><b>НАПИСАТЬ БОТУ</b></a> 🤖',
             ]
