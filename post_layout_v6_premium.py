@@ -82,9 +82,8 @@ def _clean_details(value: str) -> str:
 
 
 def apply(mod, throttle):
-    # Historical V6 is paused until a one-message smoke test confirms Telegram
-    # accepts these captured Premium Custom Emoji IDs from the bot in the channel.
-    mod.RUN_EXISTING = False
+    # Premium emoji smoke test succeeded. Historical V6 migration is enabled.
+    mod.RUN_EXISTING = True
     mod.MARKER = "💬 ОПИСАНИЕ"
     throttle.DONE_MARKER = "__STANDARDIZATION_DONE_V6_PREMIUM__"
     throttle.OK_PREFIX = "__STD_V6_PREMIUM__:"
