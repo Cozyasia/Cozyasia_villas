@@ -19,6 +19,7 @@ import post_throttle_patch
 import post_layout_v5
 import emoji_calibration
 import template_capture_mode
+import channel_template_capture
 import manual_edit_guard
 
 catalog_fixes.apply(cozy_catalog)
@@ -142,6 +143,7 @@ def _standardize_existing():
 
 def _install_catalog_handlers(app):
     template_capture_mode.install(app, cozy_catalog)
+    channel_template_capture.install(app, cozy_catalog)
     emoji_calibration.install(app, cozy_catalog)
     app.add_handler(CommandHandler("catalog_import", cozy_catalog.cmd_catalog_import), group=-20)
     app.add_handler(CommandHandler("catalog_status", cozy_catalog.cmd_catalog_status), group=-20)
