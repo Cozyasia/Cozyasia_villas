@@ -26,6 +26,7 @@ import template_capture_mode
 import channel_template_capture
 import manual_edit_guard
 import mtproto_user_client
+import mtproto_2fa_patch
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -38,6 +39,7 @@ post_layout_v6_premium.apply(post_standardizer, post_throttle_patch)
 # our bot cannot render Premium custom emoji entities inside channel posts.
 post_layout_v7_safe.apply(post_standardizer, post_throttle_patch)
 manual_edit_guard.apply(post_standardizer)
+mtproto_2fa_patch.apply(mtproto_user_client)
 
 log = logging.getLogger("villa-bot-wrapper")
 _original_free_text = legacy.free_text
