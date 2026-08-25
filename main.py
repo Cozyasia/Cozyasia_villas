@@ -131,6 +131,19 @@ def _standardize_existing():
     except Exception:log.exception("Existing post standardization failed")
 
 
+def _premium_backfill_on_startup():
+    flag = os.environ.get("MT_AUTO_BACKFILL", "").strip().lower()
+    if flag not in {"1", "true", "yes", "on"}:
+        return
+    # Give the normal catalog/bootstrap threads time to settle before editing posts.
+    time.sleep(15)
+    try:
+        result = asyncio.run(mtproto_user_client._bulk_upgrade(cozy_catalog))
+        log.info("MTProto Premium autorun backfill done: %s", result)
+    except Exception:
+        log.exception("MTProto Premium autorun backfill failed")
+
+
 def _install_catalog_handlers(app):
     template_capture_mode.install(app,cozy_catalog); channel_template_capture.install(app,cozy_catalog); emoji_calibration.install(app,cozy_catalog)
     mtproto_user_client.install(app,cozy_catalog)
@@ -154,6 +167,7 @@ def main():
     app=legacy.build_application(); _install_catalog_handlers(app)
     threading.Thread(target=_bootstrap_catalog,name="catalog-bootstrap",daemon=True).start()
     threading.Thread(target=_standardize_existing,name="post-standardizer",daemon=True).start()
+    threading.Thread(target=_premium_backfill_on_startup,name="mtproto-backfill",daemon=True).start()
     legacy.run_webhook(app)
 
 if __name__=="__main__":main()
