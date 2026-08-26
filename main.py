@@ -15,6 +15,7 @@ import cozy_catalog
 import catalog_fixes
 import catalog_feedback_patch
 import lot_id_repair
+import lot_parser_safety
 import post_standardizer
 import post_template_patch
 import post_throttle_patch
@@ -28,11 +29,11 @@ import manual_edit_guard
 import mtproto_user_client
 import mtproto_2fa_patch
 import hashtag_reorder_patch
-import publish_lot_1180
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
 lot_id_repair.apply(cozy_catalog)
+lot_parser_safety.apply(cozy_catalog)
 post_template_patch.apply(post_standardizer)
 post_throttle_patch.apply(post_standardizer)
 post_layout_v5.apply(post_standardizer, post_throttle_patch)
@@ -145,15 +146,6 @@ def _reorder_hashtags_on_startup():
         log.exception("Hashtag reorder startup migration failed")
 
 
-def _publish_lot_1180_on_startup():
-    time.sleep(8)
-    try:
-        result = asyncio.run(publish_lot_1180.run())
-        log.info("Lot 1180 startup publish done: %s", result)
-    except Exception:
-        log.exception("Lot 1180 startup publish failed")
-
-
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -185,8 +177,9 @@ def main():
         log.info("Skipping catalog normalization/repair during hashtag reorder migration")
     legacy.cmd_start=smart_start; legacy.free_text=catalog_aware_free_text
     app=legacy.build_application(); _install_catalog_handlers(app)
-    if publish_lot_1180.enabled():
-        threading.Thread(target=_publish_lot_1180_on_startup,name="publish-lot-1180",daemon=True).start()
+    # Publishing is intentionally NEVER run from service startup. A deploy/restart
+    # must not be able to create a Telegram post. New publications are prepared,
+    # preflighted and sent explicitly exactly once.
     if HASHTAG_REORDER_MODE:
         threading.Thread(target=_reorder_hashtags_on_startup,name="hashtag-reorder",daemon=True).start()
     else:
