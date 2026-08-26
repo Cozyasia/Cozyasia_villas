@@ -27,6 +27,7 @@ import channel_template_capture
 import manual_edit_guard
 import mtproto_user_client
 import mtproto_2fa_patch
+import hashtag_reorder_patch
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -44,6 +45,7 @@ mtproto_2fa_patch.apply(mtproto_user_client)
 log = logging.getLogger("villa-bot-wrapper")
 _original_free_text = legacy.free_text
 _original_catalog_parse = cozy_catalog.parse_property_query
+HASHTAG_REORDER_MODE = hashtag_reorder_patch.enabled()
 
 legacy.START_GREETING = (
     "👋 Добро пожаловать в Cozy Asia!\n\n"
@@ -131,29 +133,53 @@ def _standardize_existing():
     except Exception:log.exception("Existing post standardization failed")
 
 
+def _reorder_hashtags_on_startup():
+    # In migration mode the Google-backed channel-capture handlers are disabled,
+    # so mass Telegram edits do not create a Sheets quota storm.
+    time.sleep(5)
+    try:
+        result = asyncio.run(hashtag_reorder_patch.run(cozy_catalog))
+        log.info("Hashtag reorder startup migration done: %s", result)
+    except Exception:
+        log.exception("Hashtag reorder startup migration failed")
+
+
 def _install_catalog_handlers(app):
-    template_capture_mode.install(app,cozy_catalog); channel_template_capture.install(app,cozy_catalog); emoji_calibration.install(app,cozy_catalog)
+    if not HASHTAG_REORDER_MODE:
+        template_capture_mode.install(app,cozy_catalog)
+        channel_template_capture.install(app,cozy_catalog)
+        emoji_calibration.install(app,cozy_catalog)
+    else:
+        log.info("Hashtag reorder migration mode: channel capture handlers temporarily disabled")
     mtproto_user_client.install(app,cozy_catalog)
     app.add_handler(CommandHandler("catalog_import",cozy_catalog.cmd_catalog_import),group=-20)
     app.add_handler(CommandHandler("catalog_status",cozy_catalog.cmd_catalog_status),group=-20)
     app.add_handler(CommandHandler("find",cozy_catalog.cmd_find),group=-20)
     app.add_handler(CommandHandler("lot",cozy_catalog.cmd_lot),group=-20)
-    app.add_handler(MessageHandler(filters.ALL,cozy_catalog.catch_catalog_updates),group=-10)
-    post_standardizer.install(app,cozy_catalog); log.info("Catalog handlers installed for @%s",cozy_catalog.CATALOG_CHANNEL)
+    if not HASHTAG_REORDER_MODE:
+        app.add_handler(MessageHandler(filters.ALL,cozy_catalog.catch_catalog_updates),group=-10)
+        post_standardizer.install(app,cozy_catalog)
+    log.info("Catalog handlers installed for @%s; hashtag_reorder_mode=%s",cozy_catalog.CATALOG_CHANNEL,HASHTAG_REORDER_MODE)
 
 
 def main():
     legacy._log_openai_env(); legacy._probe_openai(); _log_google_service_account()
-    try:
-        norm_stats=cozy_catalog.normalize_existing_rows(); log.info("Pre-repair normalize complete: %s",norm_stats)
-    except Exception:log.exception("Pre-repair normalize failed")
-    try:
-        repair_stats=lot_id_repair.repair_sheet(cozy_catalog); log.info("Lot ID repair complete: %s",repair_stats)
-    except Exception:log.exception("Lot ID repair failed")
+    if not HASHTAG_REORDER_MODE:
+        try:
+            norm_stats=cozy_catalog.normalize_existing_rows(); log.info("Pre-repair normalize complete: %s",norm_stats)
+        except Exception:log.exception("Pre-repair normalize failed")
+        try:
+            repair_stats=lot_id_repair.repair_sheet(cozy_catalog); log.info("Lot ID repair complete: %s",repair_stats)
+        except Exception:log.exception("Lot ID repair failed")
+    else:
+        log.info("Skipping catalog normalization/repair during hashtag reorder migration")
     legacy.cmd_start=smart_start; legacy.free_text=catalog_aware_free_text
     app=legacy.build_application(); _install_catalog_handlers(app)
-    threading.Thread(target=_bootstrap_catalog,name="catalog-bootstrap",daemon=True).start()
-    threading.Thread(target=_standardize_existing,name="post-standardizer",daemon=True).start()
+    if HASHTAG_REORDER_MODE:
+        threading.Thread(target=_reorder_hashtags_on_startup,name="hashtag-reorder",daemon=True).start()
+    else:
+        threading.Thread(target=_bootstrap_catalog,name="catalog-bootstrap",daemon=True).start()
+        threading.Thread(target=_standardize_existing,name="post-standardizer",daemon=True).start()
     legacy.run_webhook(app)
 
 if __name__=="__main__":main()

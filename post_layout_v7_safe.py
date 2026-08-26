@@ -71,8 +71,6 @@ def apply(mod, throttle):
                 lines += ["", f"✨ Дополнительно: {mod._esc(details_text)}"]
             for title, href in mod._external_links(links, bot)[:2]:
                 lines.append(f'<a href="{html.escape(href, quote=True)}">{mod._esc(title)}</a>')
-            if tags_text:
-                lines += ["", mod._esc(tags_text)]
             lines += [
                 "",
                 "📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>",
@@ -80,6 +78,8 @@ def apply(mod, throttle):
                 "",
                 f'🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href="{html.escape(search, quote=True)}"><b>НАПИСАТЬ БОТУ</b></a> 🤖',
             ]
+            if tags_text:
+                lines += ["", mod._esc(tags_text)]
             return "\n".join(lines)
 
         text = compose(desc, details, tags)
