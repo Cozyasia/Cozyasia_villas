@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""One-shot publication/reconciliation of Facebook Marketplace item 1405490825011828."""
+"""One-shot reconciliation of Facebook Marketplace item 1405490825011828."""
 from __future__ import annotations
 import asyncio, json, logging, os
 from datetime import datetime, timezone
@@ -80,6 +80,21 @@ def _store_source(results):
     else:
         ws.append_row(payload,value_input_option="RAW")
 
+async def _find_existing(client, channel):
+    # Match this exact Maenam object by stable facts that survive all earlier
+    # layout/emoji transformations. Never infer by lot number because one bad copy
+    # currently has a corrupted lot header.
+    signatures=(
+        ("Маенам","75 000","1 сентября 2026","500 м"),
+        ("Маенам","75 000","сушиль","500 м"),
+        ("Маенам","78 000","2 раза в месяц","500 м"),
+    )
+    for terms in signatures:
+        msg=await publication_safety.find_duplicate_listing(client,channel,terms,limit=220)
+        if msg:
+            return msg
+    return None
+
 async def _reconcile_existing(client, channel, duplicate, lot):
     from telethon.errors import MessageNotModifiedError
     text,entities=_final_caption(lot)
@@ -93,41 +108,31 @@ async def _reconcile_existing(client, channel, duplicate, lot):
     if parsed!=lot:
         raise RuntimeError(f"Read-back lot mismatch in @{getattr(channel,'username',None) or channel}: expected {lot}, got {parsed}")
     publication_safety.validate_premium_caption(verify.message,verify.entities,lot)
-    if "🔗 ЖМИ ЗДЕСЬ" in (verify.message or ""):
+    live=verify.message or ""
+    if "🔗 ЖМИ ЗДЕСЬ" in live:
         raise RuntimeError("Unexpected duplicate Telegram CTA remains next to location")
+    if live.count("ЖМИ ЗДЕСЬ") != 1:
+        raise RuntimeError(f"CTA count mismatch: expected 1, got {live.count('ЖМИ ЗДЕСЬ')}")
+    if live.count("Локация на карте") != 1:
+        raise RuntimeError(f"Location link count mismatch: expected 1, got {live.count('Локация на карте')}")
     return result
 
 async def run():
     if not enabled(): return {"enabled":False}
-    photos=[str(ASSET_DIR/n) for n in PHOTO_NAMES]
-    missing=[p for p in photos if not Path(p).is_file()]
-    if missing: raise RuntimeError(f"Missing assets: {missing}")
     client=await mtproto_user_client._new_client(cozy_catalog)
     if not client: raise RuntimeError("MTProto Premium session is not authorized")
     results=[]
     try:
         for channel_name in CHANNELS:
             channel=await client.get_entity(channel_name)
-            duplicate=await publication_safety.find_duplicate_listing(client,channel,("Маенам","75 000","1 сентября 2026","приватный бассейн"),limit=180)
-            if duplicate:
-                state=await _reconcile_existing(client,channel,duplicate,LOT_ID)
-                results.append({"channel":channel_name,"lot":LOT_ID,"message_id":int(duplicate.id),"result":state})
-                await asyncio.sleep(1.5)
-                continue
-
-            # A missing copy may only be published if canonical LOT_ID is the next
-            # number in that channel. This prevents accidental collisions.
-            await publication_safety.assert_next_lot(client,channel,LOT_ID)
-            text,entities=_final_caption(LOT_ID)
-            sent=await client.send_file(channel,photos,caption=text,formatting_entities=entities)
-            messages=sent if isinstance(sent,list) else [sent]
-            caption_msg=next((m for m in messages if getattr(m,"message",None)),messages[0])
-            verify=await client.get_messages(channel,ids=int(caption_msg.id))
-            if publication_safety.lot_from_message(verify)!=LOT_ID:
-                raise RuntimeError(f"Read-back lot mismatch in @{channel_name}")
-            publication_safety.validate_premium_caption(verify.message,verify.entities,LOT_ID)
-            results.append({"channel":channel_name,"lot":LOT_ID,"message_id":int(caption_msg.id),"result":"published"})
-            await asyncio.sleep(2)
+            duplicate=await _find_existing(client,channel)
+            if not duplicate:
+                # This is deliberately edit-only. A correction run must never
+                # create a new listing if the existing album cannot be identified.
+                raise RuntimeError(f"Existing Maenam listing not found safely in @{channel_name}; refusing to publish")
+            state=await _reconcile_existing(client,channel,duplicate,LOT_ID)
+            results.append({"channel":channel_name,"lot":LOT_ID,"message_id":int(duplicate.id),"result":state})
+            await asyncio.sleep(1.5)
         await asyncio.to_thread(_store_source,results)
         log.info("PUBLISH_FB_1405490825011828_DONE %s",json.dumps(results,ensure_ascii=False))
         return {"enabled":True,"results":results}
