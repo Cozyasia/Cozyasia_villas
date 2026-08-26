@@ -33,45 +33,72 @@ def _digits(text: str) -> str:
     return "".join(out)
 
 
+def _lot_candidate(value: str) -> str:
+    s = re.sub(r"\s+", "", value or "")
+    s = s.replace("–", "-").replace("—", "-").replace("−", "-")
+    s = re.sub(r"-+", "-", s).strip("-")
+    if re.fullmatch(r"\d{3,7}(?:-\d{1,2})?", s):
+        if "-" not in s:
+            return s.lstrip("0") or "0"
+        return s
+    if re.fullmatch(r"\d{1,2}-\d{3,7}(?:-\d{1,2})?", s):
+        return s
+    return ""
+
+
 def lot_from_header_text(text: str) -> str:
     """Parse a lot only from the header area; never fall through to dates/body."""
     lines = [x.strip() for x in _digits(text).splitlines() if x.strip()]
     if not lines:
         return ""
     header_lines = []
-    for line in lines[:12]:
+    for line in lines[:14]:
         low = line.lower()
         if "описание" in low or "район:" in low or "условия аренды" in low:
             break
         header_lines.append(line)
     header = "\n".join(header_lines)
-    m = re.search(r"(?i)(?:лот|lot)\s*(?:№|#|no\.?)?\s*[:\-]?\s*(\d{3,7})", header)
-    if m:
-        return m.group(1).lstrip("0") or "0"
-    # Premium fallback: 🔤🔤🔤 🔤 1️⃣1️⃣8️⃣3️⃣
-    for line in header_lines[:4]:
-        raw_line = line
-        if "🔤" not in raw_line and not re.search(r"\d\ufe0f?\u20e3", raw_line):
+
+    marker = re.search(r"(?i)(?:лот|lot)\s*(?:№|#|no\.?)?\s*[:\-]?\s*", header)
+    if marker:
+        compact_tail = re.sub(r"\s+", "", header[marker.end():marker.end()+100])
+        m = re.match(r"((?:\d{1,2}-)?\d{3,7}(?:-\d{1,2})?)", compact_tail)
+        if m:
+            candidate = _lot_candidate(m.group(1))
+            if candidate:
+                return candidate
+
+    # Premium fallback: 🔤🔤🔤 🔤 1️⃣1️⃣8️⃣3️⃣ or 1️⃣0️⃣2️⃣0️⃣➖4️⃣.
+    for line in header_lines[:6]:
+        if "🔤" not in line and not re.search(r"\d\ufe0f?\u20e3", line):
             continue
-        nums = re.findall(r"(?<!\d)(\d{3,7})(?!\d)", raw_line)
-        if nums:
-            return nums[0].lstrip("0") or "0"
-    # Older Premium layout can put one digit on each line.
-    run = []
-    for line in header_lines[:12]:
+        compact = re.sub(r"\s+", "", line)
+        m = re.search(r"(?<!\d)((?:\d{1,2}-)?\d{3,7}(?:-\d{1,2})?)(?!\d)", compact)
+        if m:
+            candidate = _lot_candidate(m.group(1))
+            if candidate:
+                return candidate
+
+    # Older Premium layout can put every digit/hyphen on its own line.
+    parts = []
+    started = False
+    for line in header_lines[:14]:
         if re.fullmatch(r"\d", line):
-            run.append(line)
-            if len(run) > 7:
-                run = run[-7:]
-        elif run:
+            parts.append(line)
+            started = True
+        elif line == "-" and started:
+            parts.append("-")
+        elif started:
             break
-    if 3 <= len(run) <= 7:
-        return "".join(run).lstrip("0") or "0"
+    if parts:
+        candidate = _lot_candidate("".join(parts))
+        if candidate:
+            return candidate
     return ""
 
 
 def lot_from_message(msg) -> str:
-    """Prefer Custom Emoji document IDs from the first line, then safe header text."""
+    """Prefer Custom Emoji document IDs for numeric headers, then safe header text."""
     text = getattr(msg, "message", None) or ""
     entities = list(getattr(msg, "entities", None) or [])
     first_nl = text.find("\n")
@@ -88,7 +115,12 @@ def lot_from_message(msg) -> str:
         if digit is not None:
             decoded.append(digit)
     if 3 <= len(decoded) <= 7:
-        return "".join(decoded).lstrip("0") or "0"
+        candidate = "".join(decoded).lstrip("0") or "0"
+        # Historical suffixed lots need the textual fallback to preserve '-N'.
+        text_candidate = lot_from_header_text(text)
+        if "-" in text_candidate:
+            return text_candidate
+        return candidate
     return lot_from_header_text(text)
 
 
