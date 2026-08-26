@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
-"""One-shot publisher for the Maenam Soi 5 villa.
-
-Enabled only when PUBLISH_LOT_1180=1. The first run accidentally used lot 1180
-in the small channel, but 1180 already belongs to a different Bang Po property
-in the large channel. This corrected pass changes the small-channel caption to
-1181 and publishes the same 10-photo listing to the large channel as 1181.
-"""
+"""One-shot publisher/cleanup for the Maenam Soi 5 villa."""
 from __future__ import annotations
 
 import asyncio
@@ -25,6 +19,7 @@ BOT_USERNAME = "Cozyasia_villa_bot"
 SMALL_CHANNEL = "arenda_vill_samui"
 LARGE_CHANNEL = "samuirental"
 SMALL_EXISTING_MESSAGE_ID = 881
+DUPLICATE_LARGE_IDS = list(range(4935, 4945))
 DRIVE_FILES = (
     ("1QunqW44gZTeUi4L8env6G5wthmJQGG_U", "01.jpg"),
     ("1NL5fZqsV3R93Fw0Q6HMlhDHD9tJEK4_I", "02.jpg"),
@@ -69,8 +64,12 @@ CAPTION_HTML = f"""🏡 <b>ЛОТ №{LOT_ID}</b>
 #АрендаСамуи #ВиллаСамуи #Maenam #PoolVilla #KohSamuiRental #CozyAsia"""
 
 
+def _truthy(name: str) -> bool:
+    return os.getenv(name, "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def enabled() -> bool:
-    return os.getenv("PUBLISH_LOT_1180", "0").strip().lower() in {"1", "true", "yes", "on"}
+    return _truthy("PUBLISH_LOT_1180") or _truthy("CLEANUP_DUP_1181")
 
 
 def _download_images(temp_dir: str) -> list[str]:
@@ -108,15 +107,9 @@ def _caption_with_entities():
 
 
 async def _find_exact_existing(client, entity):
-    async for msg in client.iter_messages(entity, limit=100):
+    async for msg in client.iter_messages(entity, limit=120):
         text = getattr(msg, "message", None) or ""
-        if (
-            text
-            and cozy_catalog.extract_lot_id(text) == LOT_ID
-            and "Маенам" in text
-            and "60 000" in text
-            and "14 ноября 2026" in text
-        ):
+        if text and "Маенам" in text and "60 000" in text and "14 ноября 2026" in text:
             return msg
     return None
 
@@ -127,34 +120,36 @@ async def run() -> dict:
     client = await mtproto_user_client._new_client(cozy_catalog)
     if not client:
         raise RuntimeError("MTProto Premium session is not authorized")
-    results = {}
     try:
-        text, entities = _caption_with_entities()
+        if _truthy("CLEANUP_DUP_1181"):
+            large = await client.get_entity(LARGE_CHANNEL)
+            existing = await client.get_messages(large, ids=DUPLICATE_LARGE_IDS)
+            live_ids = [int(m.id) for m in existing if m]
+            if live_ids:
+                await client.delete_messages(large, live_ids)
+            result = {"cleanup": "done", "deleted_ids": live_ids}
+            log.info("Lot %s duplicate cleanup complete: %s", LOT_ID, result)
+            return result
 
-        # Correct the already-posted 10-photo small-channel album in place.
+        if not _truthy("PUBLISH_LOT_1180"):
+            return {"enabled": False}
+
+        results = {}
+        text, entities = _caption_with_entities()
         small = await client.get_entity(SMALL_CHANNEL)
         small_msg = await client.get_messages(small, ids=SMALL_EXISTING_MESSAGE_ID)
         if not small_msg or not getattr(small_msg, "message", None):
             raise RuntimeError("Small-channel lot album caption message 881 is missing")
-        if (
-            cozy_catalog.extract_lot_id(small_msg.message) == LOT_ID
-            and "Маенам" in small_msg.message
-            and "60 000" in small_msg.message
-        ):
+        if "Маенам" in small_msg.message and "60 000" in small_msg.message and "14 ноября 2026" in small_msg.message:
             results[SMALL_CHANNEL] = {"result": "already", "caption_message_id": SMALL_EXISTING_MESSAGE_ID}
         else:
             await client.edit_message(
-                small,
-                SMALL_EXISTING_MESSAGE_ID,
-                text,
-                formatting_entities=entities,
-                link_preview=False,
+                small, SMALL_EXISTING_MESSAGE_ID, text,
+                formatting_entities=entities, link_preview=False,
             )
             results[SMALL_CHANNEL] = {"result": "corrected", "caption_message_id": SMALL_EXISTING_MESSAGE_ID}
             log.info("Lot %s corrected @%s message_id=%s", LOT_ID, SMALL_CHANNEL, SMALL_EXISTING_MESSAGE_ID)
 
-        # Publish the same 10-photo album to the large channel unless the exact
-        # Maenam listing is already there.
         large = await client.get_entity(LARGE_CHANNEL)
         existing = await _find_exact_existing(client, large)
         if existing:
@@ -164,21 +159,15 @@ async def run() -> dict:
             with tempfile.TemporaryDirectory(prefix="cozy-lot-1181-") as temp_dir:
                 images = await asyncio.to_thread(_download_images, temp_dir)
                 sent = await client.send_file(
-                    large,
-                    images,
-                    caption=text,
-                    formatting_entities=entities,
+                    large, images, caption=text, formatting_entities=entities,
                 )
             messages = sent if isinstance(sent, (list, tuple)) else [sent]
             caption_msg = next((m for m in messages if (getattr(m, "message", None) or "").strip()), messages[0])
             ids = [int(m.id) for m in messages]
             results[LARGE_CHANNEL] = {
-                "result": "posted",
-                "caption_message_id": int(caption_msg.id),
-                "media_message_ids": ids,
+                "result": "posted", "caption_message_id": int(caption_msg.id), "media_message_ids": ids,
             }
             log.info("Lot %s posted @%s caption_message_id=%s media_ids=%s", LOT_ID, LARGE_CHANNEL, caption_msg.id, ids)
-
         log.info("Lot %s corrected publish complete: %s", LOT_ID, results)
         return results
     finally:
