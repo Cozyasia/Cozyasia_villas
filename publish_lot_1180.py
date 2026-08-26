@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""One-shot publisher for Cozy Asia lot 1180.
+"""One-shot publisher for the Maenam Soi 5 villa.
 
-Enabled only when PUBLISH_LOT_1180=1. Uses the already-authorized Premium
-MTProto account, downloads the 10 user-provided photos from Drive through the
-service account, and posts the same album to both Cozy Asia channels.
-Idempotent: before posting it searches recent channel history for lot 1180.
+Enabled only when PUBLISH_LOT_1180=1. The first run accidentally used lot 1180
+in the small channel, but 1180 already belongs to a different Bang Po property
+in the large channel. This corrected pass changes the small-channel caption to
+1181 and publishes the same 10-photo listing to the large channel as 1181.
 """
 from __future__ import annotations
 
@@ -20,9 +20,11 @@ import mtproto_user_client
 
 log = logging.getLogger("publish-lot-1180")
 
-LOT_ID = "1180"
+LOT_ID = "1181"
 BOT_USERNAME = "Cozyasia_villa_bot"
-CHANNELS = ("arenda_vill_samui", "samuirental")
+SMALL_CHANNEL = "arenda_vill_samui"
+LARGE_CHANNEL = "samuirental"
+SMALL_EXISTING_MESSAGE_ID = 881
 DRIVE_FILES = (
     ("1QunqW44gZTeUi4L8env6G5wthmJQGG_U", "01.jpg"),
     ("1NL5fZqsV3R93Fw0Q6HMlhDHD9tJEK4_I", "02.jpg"),
@@ -74,21 +76,18 @@ def enabled() -> bool:
 def _download_images(temp_dir: str) -> list[str]:
     from google.oauth2.service_account import Credentials
     from google.auth.transport.requests import AuthorizedSession
-
     raw = os.getenv("GOOGLE_CREDS_JSON", "").strip()
     if not raw:
         raise RuntimeError("GOOGLE_CREDS_JSON missing")
     creds = Credentials.from_service_account_info(
-        json.loads(raw),
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
+        json.loads(raw), scopes=["https://www.googleapis.com/auth/drive.readonly"]
     )
     session = AuthorizedSession(creds)
     paths = []
     root = Path(temp_dir)
     for file_id, name in DRIVE_FILES:
         response = session.get(
-            f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media",
-            timeout=45,
+            f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media", timeout=45
         )
         response.raise_for_status()
         path = root / name
@@ -108,10 +107,16 @@ def _caption_with_entities():
     return text, entities
 
 
-async def _find_existing(client, entity):
-    async for msg in client.iter_messages(entity, limit=80):
+async def _find_exact_existing(client, entity):
+    async for msg in client.iter_messages(entity, limit=100):
         text = getattr(msg, "message", None) or ""
-        if text and cozy_catalog.extract_lot_id(text) == LOT_ID:
+        if (
+            text
+            and cozy_catalog.extract_lot_id(text) == LOT_ID
+            and "Маенам" in text
+            and "60 000" in text
+            and "14 ноября 2026" in text
+        ):
             return msg
     return None
 
@@ -125,38 +130,56 @@ async def run() -> dict:
     results = {}
     try:
         text, entities = _caption_with_entities()
-        with tempfile.TemporaryDirectory(prefix="cozy-lot-1180-") as temp_dir:
-            images = await asyncio.to_thread(_download_images, temp_dir)
-            for channel_name in CHANNELS:
-                entity = await client.get_entity(channel_name)
-                existing = await _find_existing(client, entity)
-                if existing:
-                    results[channel_name] = {
-                        "result": "already",
-                        "caption_message_id": int(existing.id),
-                    }
-                    log.info("Lot %s already exists @%s message_id=%s", LOT_ID, channel_name, existing.id)
-                    continue
+
+        # Correct the already-posted 10-photo small-channel album in place.
+        small = await client.get_entity(SMALL_CHANNEL)
+        small_msg = await client.get_messages(small, ids=SMALL_EXISTING_MESSAGE_ID)
+        if not small_msg or not getattr(small_msg, "message", None):
+            raise RuntimeError("Small-channel lot album caption message 881 is missing")
+        if (
+            cozy_catalog.extract_lot_id(small_msg.message) == LOT_ID
+            and "Маенам" in small_msg.message
+            and "60 000" in small_msg.message
+        ):
+            results[SMALL_CHANNEL] = {"result": "already", "caption_message_id": SMALL_EXISTING_MESSAGE_ID}
+        else:
+            await client.edit_message(
+                small,
+                SMALL_EXISTING_MESSAGE_ID,
+                text,
+                formatting_entities=entities,
+                link_preview=False,
+            )
+            results[SMALL_CHANNEL] = {"result": "corrected", "caption_message_id": SMALL_EXISTING_MESSAGE_ID}
+            log.info("Lot %s corrected @%s message_id=%s", LOT_ID, SMALL_CHANNEL, SMALL_EXISTING_MESSAGE_ID)
+
+        # Publish the same 10-photo album to the large channel unless the exact
+        # Maenam listing is already there.
+        large = await client.get_entity(LARGE_CHANNEL)
+        existing = await _find_exact_existing(client, large)
+        if existing:
+            results[LARGE_CHANNEL] = {"result": "already", "caption_message_id": int(existing.id)}
+            log.info("Lot %s exact listing already exists @%s message_id=%s", LOT_ID, LARGE_CHANNEL, existing.id)
+        else:
+            with tempfile.TemporaryDirectory(prefix="cozy-lot-1181-") as temp_dir:
+                images = await asyncio.to_thread(_download_images, temp_dir)
                 sent = await client.send_file(
-                    entity,
+                    large,
                     images,
                     caption=text,
                     formatting_entities=entities,
                 )
-                messages = sent if isinstance(sent, (list, tuple)) else [sent]
-                caption_msg = next((m for m in messages if (getattr(m, "message", None) or "").strip()), messages[0])
-                ids = [int(m.id) for m in messages]
-                results[channel_name] = {
-                    "result": "posted",
-                    "caption_message_id": int(caption_msg.id),
-                    "media_message_ids": ids,
-                }
-                log.info(
-                    "Lot %s posted @%s caption_message_id=%s media_ids=%s",
-                    LOT_ID, channel_name, caption_msg.id, ids,
-                )
-                await asyncio.sleep(2)
-        log.info("Lot %s publish complete: %s", LOT_ID, results)
+            messages = sent if isinstance(sent, (list, tuple)) else [sent]
+            caption_msg = next((m for m in messages if (getattr(m, "message", None) or "").strip()), messages[0])
+            ids = [int(m.id) for m in messages]
+            results[LARGE_CHANNEL] = {
+                "result": "posted",
+                "caption_message_id": int(caption_msg.id),
+                "media_message_ids": ids,
+            }
+            log.info("Lot %s posted @%s caption_message_id=%s media_ids=%s", LOT_ID, LARGE_CHANNEL, caption_msg.id, ids)
+
+        log.info("Lot %s corrected publish complete: %s", LOT_ID, results)
         return results
     finally:
         await client.disconnect()
