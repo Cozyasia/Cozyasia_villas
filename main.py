@@ -28,6 +28,7 @@ import channel_template_capture
 import manual_edit_guard
 import mtproto_user_client
 import mtproto_2fa_patch
+import samui_news_automation
 import hashtag_reorder_patch
 import publish_fb_1038134945777547
 import correct_fb_1038134945777547
@@ -206,6 +207,7 @@ def main():
         threading.Thread(target=_correct_fb_1038134945777547_on_startup,name="correct-fb-1038134945777547",daemon=True).start()
     if publish_fb_1038134945777547.enabled():
         threading.Thread(target=_publish_fb_1038134945777547_on_startup,name="publish-fb-1038134945777547",daemon=True).start()
+    samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
     # preflighted and sent explicitly exactly once.
