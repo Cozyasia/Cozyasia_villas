@@ -28,6 +28,7 @@ import manual_edit_guard
 import mtproto_user_client
 import mtproto_2fa_patch
 import hashtag_reorder_patch
+import publish_lot_1180
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -144,6 +145,15 @@ def _reorder_hashtags_on_startup():
         log.exception("Hashtag reorder startup migration failed")
 
 
+def _publish_lot_1180_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(publish_lot_1180.run())
+        log.info("Lot 1180 startup publish done: %s", result)
+    except Exception:
+        log.exception("Lot 1180 startup publish failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -175,6 +185,8 @@ def main():
         log.info("Skipping catalog normalization/repair during hashtag reorder migration")
     legacy.cmd_start=smart_start; legacy.free_text=catalog_aware_free_text
     app=legacy.build_application(); _install_catalog_handlers(app)
+    if publish_lot_1180.enabled():
+        threading.Thread(target=_publish_lot_1180_on_startup,name="publish-lot-1180",daemon=True).start()
     if HASHTAG_REORDER_MODE:
         threading.Thread(target=_reorder_hashtags_on_startup,name="hashtag-reorder",daemon=True).start()
     else:
