@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""One-shot publication of Facebook Marketplace item 1405490825011828."""
+"""One-shot publication/reconciliation of Facebook Marketplace item 1405490825011828."""
 from __future__ import annotations
 import asyncio, json, logging, os
 from datetime import datetime, timezone
@@ -12,6 +12,7 @@ SOURCE_URL="https://www.facebook.com/marketplace/item/1405490825011828/"
 OWNER_NAME="Supattra PL"
 CHANNELS=("samuirental","arenda_vill_samui")
 BOT_USERNAME="Cozyasia_villa_bot"
+LOT_ID="1183"
 ASSET_DIR=Path(__file__).with_name("publication_assets")/SOURCE_ID
 PHOTO_NAMES=[f"{i:02d}.jpg" for i in range(1,11)]
 
@@ -25,7 +26,7 @@ def _caption_html(lot):
 <blockquote>Свежий после ремонта частный дом в Маенаме с приватным бассейном. Светлый интерьер, гостиная, оборудованная кухня, обеденная зона, 2 просторные спальни, 2 ванные и гостевой санузел. Крытая парковка на 4–5 автомобилей.</blockquote>
 
 📍 Район: Маенам, Soi 6
-🗺 <a href="https://maps.google.com/?q=Maenam+Soi+6+Koh+Samui">Примерная локация</a>
+📍 <a href="https://maps.google.com/?q=Maenam+Soi+6+Koh+Samui">Локация на карте</a>
 🏠 Тип: частный дом
 🛏 Спальни: 2
 🛁 Ванные: 2 + гостевой санузел
@@ -68,8 +69,33 @@ def _store_source(results):
     except Exception:
         ws=sh.add_worksheet(title="SourceRegistry",rows=500,cols=12)
         ws.append_row(["created_at","source_id","source_url","owner_url","original_price_thb","original_description","availability","channels_json","lots_json","message_ids_json","status","notes"],value_input_option="RAW")
-    if any(len(r)>1 and r[1]==SOURCE_ID for r in ws.get_all_values()[1:]): return
-    ws.append_row([datetime.now(timezone.utc).isoformat(timespec="seconds"),SOURCE_ID,SOURCE_URL,"", "65000 yearly / 68000 six months","Newly renovated 2-bedroom private pool house, Maenam Soi 6. Internet and twice-monthly cleaning included; utilities excluded.","Available from 2026-09-01",json.dumps([r["channel"] for r in results],ensure_ascii=False),json.dumps({r["channel"]:r["lot"] for r in results},ensure_ascii=False),json.dumps({r["channel"]:r["message_id"] for r in results},ensure_ascii=False),"published",f"Owner: {OWNER_NAME}. Public contacts removed; source retained internally."],value_input_option="RAW")
+    rows=ws.get_all_values()
+    existing=None
+    for i,r in enumerate(rows[1:],start=2):
+        if len(r)>1 and r[1]==SOURCE_ID:
+            existing=i; break
+    payload=[datetime.now(timezone.utc).isoformat(timespec="seconds"),SOURCE_ID,SOURCE_URL,"", "65000 yearly / 68000 six months","Newly renovated 2-bedroom private pool house, Maenam Soi 6. Internet and twice-monthly cleaning included; utilities excluded.","Available from 2026-09-01",json.dumps([r["channel"] for r in results],ensure_ascii=False),json.dumps({r["channel"]:r["lot"] for r in results},ensure_ascii=False),json.dumps({r["channel"]:r["message_id"] for r in results},ensure_ascii=False),"published",f"Owner: {OWNER_NAME}. Public contacts removed; source retained internally. Canonical lot {LOT_ID} synchronized across channels."]
+    if existing:
+        ws.update(f"A{existing}:L{existing}",[payload],value_input_option="RAW")
+    else:
+        ws.append_row(payload,value_input_option="RAW")
+
+async def _reconcile_existing(client, channel, duplicate, lot):
+    from telethon.errors import MessageNotModifiedError
+    text,entities=_final_caption(lot)
+    try:
+        await client.edit_message(channel,int(duplicate.id),text,formatting_entities=entities,link_preview=False)
+        result="corrected"
+    except MessageNotModifiedError:
+        result="already_correct"
+    verify=await client.get_messages(channel,ids=int(duplicate.id))
+    parsed=publication_safety.lot_from_message(verify)
+    if parsed!=lot:
+        raise RuntimeError(f"Read-back lot mismatch in @{getattr(channel,'username',None) or channel}: expected {lot}, got {parsed}")
+    publication_safety.validate_premium_caption(verify.message,verify.entities,lot)
+    if "🔗 ЖМИ ЗДЕСЬ" in (verify.message or ""):
+        raise RuntimeError("Unexpected duplicate Telegram CTA remains next to location")
+    return result
 
 async def run():
     if not enabled(): return {"enabled":False}
@@ -84,21 +110,26 @@ async def run():
             channel=await client.get_entity(channel_name)
             duplicate=await publication_safety.find_duplicate_listing(client,channel,("Маенам","75 000","1 сентября 2026","приватный бассейн"),limit=180)
             if duplicate:
-                results.append({"channel":channel_name,"lot":publication_safety.lot_from_message(duplicate),"message_id":int(duplicate.id),"result":"already"}); continue
-            previous=await publication_safety.latest_numeric_lot(client,channel,limit=180)
-            if not previous: raise RuntimeError(f"Could not determine latest lot for @{channel_name}")
-            lot=str(int(previous)+1)
-            await publication_safety.assert_next_lot(client,channel,lot)
-            text,entities=_final_caption(lot)
+                state=await _reconcile_existing(client,channel,duplicate,LOT_ID)
+                results.append({"channel":channel_name,"lot":LOT_ID,"message_id":int(duplicate.id),"result":state})
+                await asyncio.sleep(1.5)
+                continue
+
+            # A missing copy may only be published if canonical LOT_ID is the next
+            # number in that channel. This prevents accidental collisions.
+            await publication_safety.assert_next_lot(client,channel,LOT_ID)
+            text,entities=_final_caption(LOT_ID)
             sent=await client.send_file(channel,photos,caption=text,formatting_entities=entities)
             messages=sent if isinstance(sent,list) else [sent]
             caption_msg=next((m for m in messages if getattr(m,"message",None)),messages[0])
             verify=await client.get_messages(channel,ids=int(caption_msg.id))
-            if publication_safety.lot_from_message(verify)!=lot: raise RuntimeError(f"Read-back lot mismatch in @{channel_name}")
-            publication_safety.validate_premium_caption(verify.message,verify.entities,lot)
-            results.append({"channel":channel_name,"lot":lot,"message_id":int(caption_msg.id),"result":"published"})
+            if publication_safety.lot_from_message(verify)!=LOT_ID:
+                raise RuntimeError(f"Read-back lot mismatch in @{channel_name}")
+            publication_safety.validate_premium_caption(verify.message,verify.entities,LOT_ID)
+            results.append({"channel":channel_name,"lot":LOT_ID,"message_id":int(caption_msg.id),"result":"published"})
             await asyncio.sleep(2)
         await asyncio.to_thread(_store_source,results)
         log.info("PUBLISH_FB_1405490825011828_DONE %s",json.dumps(results,ensure_ascii=False))
         return {"enabled":True,"results":results}
-    finally: await client.disconnect()
+    finally:
+        await client.disconnect()
