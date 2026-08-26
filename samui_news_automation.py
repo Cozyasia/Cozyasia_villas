@@ -24,7 +24,10 @@ import mtproto_user_client
 log = logging.getLogger("samui-news")
 CHANNEL = os.environ.get("SAMUI_NEWS_CHANNEL", "samui_news_ru").strip().lstrip("@")
 TZ = timezone(timedelta(hours=7))
-RUN_HOURS = (8, 19)
+SCAN_HOURS = range(7, 23)
+MAX_POSTS_PER_DAY = 3
+MAX_STORIES_PER_DAY = 2
+MIN_POST_GAP_SECONDS = 2 * 60 * 60
 STATE_SHEET = "SamuiNewsAutomation"
 _STARTED = False
 _LOCK = threading.Lock()
@@ -54,6 +57,28 @@ def _completed(catalog, slot, kind):
     except Exception:
         log.exception("Could not read Samui News state")
         return False
+
+
+def _daily_state(catalog, day):
+    posts = stories = 0
+    last_post = None
+    used_urls = set()
+    try:
+        for row in _worksheet(catalog).get_all_values()[1:]:
+            if not row or not row[0].startswith(day):
+                continue
+            if len(row) > 1 and row[1] == "post":
+                posts += 1
+                if len(row) > 5 and row[5]:
+                    try: last_post = max(last_post or datetime.min.replace(tzinfo=timezone.utc), datetime.fromisoformat(row[5]))
+                    except Exception: pass
+            elif len(row) > 1 and row[1] == "story":
+                stories += 1
+            if len(row) > 4:
+                used_urls.update(x.strip() for x in row[4].splitlines() if x.strip())
+    except Exception:
+        log.exception("Could not build Samui News daily state")
+    return {"posts": posts, "stories": stories, "last_post": last_post, "used_urls": used_urls}
 
 
 def _mark(catalog, slot, kind, content, message_id, urls):
@@ -89,6 +114,30 @@ def _fetch_candidates():
             log.exception("News feed failed: %s", query)
     samui = [x for x in items if re.search(r"samui|สมุย", x["title"], re.I)]
     return (samui or items)[:24]
+
+
+def _importance(item):
+    title = item["title"].lower()
+    score = 0
+    critical = ("warning", "storm", "flood", "accident", "closed", "closure", "police", "arrest", "immigration",
+                "visa", "law", "rule", "airport", "ferry", "พายุ", "น้ำท่วม", "ตำรวจ", "ตรวจคนเข้าเมือง")
+    useful = ("samui", "สมุย", "event", "festival", "opening", "weather", "tourist", "business", "flight")
+    score += sum(2 for word in critical if word in title)
+    score += sum(1 for word in useful if word in title)
+    return score
+
+
+def _should_publish(items, state, now):
+    fresh = [x for x in items if x["url"] not in state["used_urls"]]
+    if not fresh or state["posts"] >= MAX_POSTS_PER_DAY:
+        return False, []
+    if state["last_post"] and (datetime.now(timezone.utc) - state["last_post"]).total_seconds() < MIN_POST_GAP_SECONDS:
+        return False, []
+    best = max(_importance(x) for x in fresh)
+    # Major developments go out quickly. Normal news needs enough substance;
+    # 19:00–21:59 is the fallback digest window, never an obligation to post.
+    publish = best >= 5 or (best >= 3 and len(fresh) >= 2) or (19 <= now.hour <= 21 and len(fresh) >= 3)
+    return publish, sorted(fresh, key=_importance, reverse=True)[:18]
 
 
 def _compose(items, slot):
@@ -172,8 +221,7 @@ def _story_copy(post):
     return title[:90], subtitle[:180]
 
 
-async def _publish(catalog, slot):
-    items = await asyncio.to_thread(_fetch_candidates)
+async def _publish(catalog, slot, items, state):
     post = await asyncio.to_thread(_compose, items, slot)
     urls = [x["url"] for x in items[:8]]
     client = await mtproto_user_client._new_client(catalog)
@@ -186,7 +234,7 @@ async def _publish(catalog, slot):
             msg = await client.send_message(channel, post, parse_mode="html", link_preview=False)
             message_id = msg.id
             await asyncio.to_thread(_mark, catalog, slot, "post", post, message_id, urls)
-        if not await asyncio.to_thread(_completed, catalog, slot, "story"):
+        if state["stories"] < MAX_STORIES_PER_DAY and not await asyncio.to_thread(_completed, catalog, slot, "story"):
             from telethon.tl import functions, types
             title, subtitle = _story_copy(post)
             media_file = await client.upload_file(_story_image(title, subtitle), file_name=f"samui-news-{slot}.jpg")
@@ -203,26 +251,29 @@ async def _publish(catalog, slot):
         await client.disconnect()
 
 
-def _current_slot(now):
-    if now.hour >= RUN_HOURS[1]: return now.strftime("%Y-%m-%d") + "-evening"
-    if now.hour >= RUN_HOURS[0]: return now.strftime("%Y-%m-%d") + "-morning"
-    return None
-
-
 def ensure_started(catalog):
     global _STARTED
     with _LOCK:
         if _STARTED: return
         _STARTED = True
     def runner():
-        # A due slot is published immediately after deploy; state makes restarts harmless.
+        last_scan_hour = None
         while True:
             try:
-                slot = _current_slot(datetime.now(TZ))
-                if slot and (not _completed(catalog, slot, "post") or not _completed(catalog, slot, "story")):
-                    asyncio.run(_publish(catalog, slot))
+                now = datetime.now(TZ)
+                scan_key = now.strftime("%Y-%m-%d-%H")
+                if now.hour in SCAN_HOURS and scan_key != last_scan_hour:
+                    last_scan_hour = scan_key
+                    state = _daily_state(catalog, now.strftime("%Y-%m-%d"))
+                    items = _fetch_candidates()
+                    publish, selected = _should_publish(items, state, now)
+                    if publish:
+                        slot = f"{scan_key}-{state['posts'] + 1}"
+                        asyncio.run(_publish(catalog, slot, selected, state))
+                    else:
+                        log.info("Samui News scan complete; no publication warranted: %s", scan_key)
             except Exception:
                 log.exception("Samui News scheduled publication failed")
             time.sleep(60)
     threading.Thread(target=runner, name="samui-news-scheduler", daemon=True).start()
-    log.info("Samui News automation active: 08:00 and 19:00 Asia/Bangkok")
+    log.info("Samui News event-driven automation active: hourly 07:00-22:00 Asia/Bangkok; max 3 posts/2 stories")
