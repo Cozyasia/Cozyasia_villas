@@ -30,6 +30,7 @@ import mtproto_user_client
 import mtproto_2fa_patch
 import hashtag_reorder_patch
 import publish_fb_1038134945777547
+import correct_fb_1038134945777547
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -157,6 +158,16 @@ def _publish_fb_1038134945777547_on_startup():
         log.exception("Facebook one-shot publication failed")
 
 
+def _correct_fb_1038134945777547_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(correct_fb_1038134945777547.run())
+        if result.get("enabled"):
+            log.info("Facebook in-place correction complete: %s", result)
+    except Exception:
+        log.exception("Facebook in-place correction failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -187,7 +198,12 @@ def main():
     else:
         log.info("Skipping catalog normalization/repair during hashtag reorder migration")
     legacy.cmd_start=smart_start; legacy.free_text=catalog_aware_free_text
-    app=legacy.build_application(); _install_catalog_handlers(app)
+    app=legacy.build_application()
+    if not correct_fb_1038134945777547.enabled():
+        _install_catalog_handlers(app)
+    else:
+        log.info("Correction mode: catalog/channel mutation handlers are disabled")
+        threading.Thread(target=_correct_fb_1038134945777547_on_startup,name="correct-fb-1038134945777547",daemon=True).start()
     if publish_fb_1038134945777547.enabled():
         threading.Thread(target=_publish_fb_1038134945777547_on_startup,name="publish-fb-1038134945777547",daemon=True).start()
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
