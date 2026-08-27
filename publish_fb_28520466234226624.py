@@ -78,7 +78,21 @@ async def run():
             channel=await client.get_entity(channel_name)
             duplicate=await publication_safety.find_duplicate_listing(client,channel,("Бан-Тай","45 000","500 THB/мес","30 декабря 2026"),limit=220)
             if duplicate:
-                results.append({"channel":channel_name,"lot":publication_safety.lot_from_message(duplicate),"message_id":int(duplicate.id),"result":"already"}); continue
+                # A catalog observer can misread the first year in a Premium
+                # caption as the lot number. Re-apply the authoritative lot in
+                # place; never delete or republish the album.
+                from telethon.errors import MessageNotModifiedError
+                lot="1184"
+                text,entities=_final_caption(lot)
+                try:
+                    await client.edit_message(channel,int(duplicate.id),text,formatting_entities=entities,link_preview=False)
+                    state="corrected"
+                except MessageNotModifiedError:
+                    state="already_correct"
+                verify=await client.get_messages(channel,ids=int(duplicate.id))
+                if publication_safety.lot_from_message(verify)!=lot: raise RuntimeError("Corrected lot read-back mismatch")
+                publication_safety.validate_premium_caption(verify.message,verify.entities,lot)
+                results.append({"channel":channel_name,"lot":lot,"message_id":int(duplicate.id),"result":state}); continue
             previous=await publication_safety.latest_numeric_lot(client,channel,limit=220)
             lot=str(int(previous)+1)
             await publication_safety.assert_next_lot(client,channel,lot)

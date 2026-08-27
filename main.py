@@ -221,11 +221,12 @@ def main():
         log.info("Skipping catalog normalization/repair during hashtag reorder migration")
     legacy.cmd_start=smart_start; legacy.free_text=catalog_aware_free_text
     app=legacy.build_application()
-    if not correct_fb_1038134945777547.enabled():
+    if not correct_fb_1038134945777547.enabled() and not publish_fb_28520466234226624.enabled():
         _install_catalog_handlers(app)
     else:
-        log.info("Correction mode: catalog/channel mutation handlers are disabled")
-        threading.Thread(target=_correct_fb_1038134945777547_on_startup,name="correct-fb-1038134945777547",daemon=True).start()
+        log.info("One-shot publication/correction mode: catalog/channel mutation handlers are disabled")
+        if correct_fb_1038134945777547.enabled():
+            threading.Thread(target=_correct_fb_1038134945777547_on_startup,name="correct-fb-1038134945777547",daemon=True).start()
     if publish_fb_1038134945777547.enabled():
         threading.Thread(target=_publish_fb_1038134945777547_on_startup,name="publish-fb-1038134945777547",daemon=True).start()
     if publish_fb_1405490825011828.enabled():
