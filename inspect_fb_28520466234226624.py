@@ -58,7 +58,14 @@ def _extract(response, label):
         tag = soup.find("meta", attrs={"property": key}) or soup.find("meta", attrs={"name": key})
         if tag and tag.get("content"):
             meta[key] = _clean(tag.get("content"))
-    extraction = {
+    image_urls = _matches(body, r'\"(?:uri|url)\"\s*:\s*\"(https?:\\/\\/[^\"]+(?:scontent|fbcdn)[^\"]*)\"', 60)
+    for candidate in re.findall(r'https?:\\/\\/[^\"\\s]{20,900}', body):
+        value = _clean(candidate)
+        if "scontent" in value and value not in image_urls:
+            image_urls.append(value)
+        if len(image_urls) >= 60:
+            break
+    return {
         "label": label,
         "status": response.status_code,
         "final_url": response.url,
@@ -69,15 +76,16 @@ def _extract(response, label):
         "prices": _matches(body, r'\"(?:formatted_amount|formatted_price|listing_price|price)\"\s*:\s*\"([^\"]{1,120})\"', 30),
         "descriptions": _matches(body, r'\"(?:redacted_description|description|listing_description)\"\s*:\s*\"([^\"]{8,1600})\"', 30),
         "locations": _matches(body, r'\"(?:location_text|reverse_geocode|city|marketplace_listing_location)\"\s*:\s*\"([^\"]{2,300})\"', 30),
-        "image_urls": _matches(body, r'\"(?:uri|url)\"\s*:\s*\"(https?:\\/\\/[^\"]+(?:scontent|fbcdn)[^\"]*)\"', 40),
+        "image_urls": image_urls,
     }
-    for candidate in re.findall(r'https?:\\/\\/[^\"\\s]{20,900}', body):
-        value = _clean(candidate)
-        if any(x in value for x in ("scontent", "fbcdn")) and value not in extraction["image_urls"]:
-            extraction["image_urls"].append(value)
-        if len(extraction["image_urls"]) >= 40:
-            break
-    return extraction
+
+
+def _has_listing_signal(extraction):
+    if extraction["listing_titles"] or extraction["prices"] or extraction["descriptions"] or extraction["locations"]:
+        return True
+    if any(k in extraction["meta"] for k in ("og:title", "og:description", "og:image")):
+        return True
+    return any("scontent" in u for u in extraction["image_urls"])
 
 
 def run():
@@ -101,8 +109,10 @@ def run():
                 )
                 extraction = _extract(r, label)
                 attempts.append(extraction)
-                log.info("FB285_PROBE %s", json.dumps(extraction, ensure_ascii=False))
-                if extraction["meta"] or extraction["listing_titles"] or extraction["descriptions"] or extraction["image_urls"]:
+                compact = dict(extraction)
+                compact["image_urls"] = [u for u in extraction["image_urls"] if "scontent" in u][:15]
+                log.info("FB285_PROBE %s", json.dumps(compact, ensure_ascii=False))
+                if _has_listing_signal(extraction):
                     return {"enabled": True, "success": True, "attempt": extraction}
             except Exception as exc:
                 attempts.append({"label": label, "error": f"{type(exc).__name__}: {exc}"})
