@@ -33,6 +33,7 @@ import hashtag_reorder_patch
 import publish_fb_1038134945777547
 import correct_fb_1038134945777547
 import publish_fb_1405490825011828
+import publish_fb_28520466234226624
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -179,6 +180,15 @@ def _publish_fb_1405490825011828_on_startup():
     except Exception:
         log.exception("Facebook Maenam publication failed")
 
+def _publish_fb_28520466234226624_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(publish_fb_28520466234226624.run())
+        if result.get("enabled"):
+            log.info("Facebook Baan Tai publication complete: %s", result)
+    except Exception:
+        log.exception("Facebook Baan Tai publication failed")
+
 
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
@@ -220,6 +230,8 @@ def main():
         threading.Thread(target=_publish_fb_1038134945777547_on_startup,name="publish-fb-1038134945777547",daemon=True).start()
     if publish_fb_1405490825011828.enabled():
         threading.Thread(target=_publish_fb_1405490825011828_on_startup,name="publish-fb-1405490825011828",daemon=True).start()
+    if publish_fb_28520466234226624.enabled():
+        threading.Thread(target=_publish_fb_28520466234226624_on_startup,name="publish-fb-28520466234226624",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
