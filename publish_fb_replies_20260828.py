@@ -116,7 +116,8 @@ def _caption_html(item, lot):
 💰 <b>УСЛОВИЯ АРЕНДЫ</b>
 {item['terms']}
 
-📝 <b>ОСТАВИТЬ ЗАЯВКУ</b> — <a href="https://t.me/{BOT_USERNAME}?start=rent_{lot}"><b>НАПИСАТЬ БОТУ</b></a> 🤖
+📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
+<a href="https://t.me/{BOT_USERNAME}?start=rent_{lot}"><b>НАПИСАТЬ БОТУ</b></a> 🤖
 
 #АрендаСамуи #ВиллаСамуи #ДомСамуи #KohSamuiRental #CozyAsia"""
 
