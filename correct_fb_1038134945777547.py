@@ -1,17 +1,32 @@
 # -*- coding: utf-8 -*-
-"""One-shot in-place correction for the two published Facebook albums."""
+"""One-shot in-place correction for published albums and channel bot routing."""
 import asyncio, json, logging, os
 import cozy_catalog, mtproto_user_client, publication_safety
 import publish_fb_1038134945777547 as publication
+import channel_bot_routing
 
 log=logging.getLogger("correct-fb-1038134945777547")
 TARGETS=(("samuirental",4945,"1185"),("arenda_vill_samui",891,"1182"))
 
-def enabled():
+
+def _legacy_enabled():
     return os.getenv("CORRECT_FB_1038134945777547","0").strip().lower() in {"1","true","yes","on"}
 
+
+def enabled():
+    # Reuse this already-wired startup hook for the one-time channel-wide bot
+    # routing migration, without changing main.py or creating a second runner.
+    return _legacy_enabled() or channel_bot_routing.enabled()
+
+
 async def run():
-    if not enabled(): return {"enabled":False}
+    if channel_bot_routing.enabled():
+        result = await channel_bot_routing.run(cozy_catalog)
+        log.info("CHANNEL_BOT_ROUTING_VIA_CORRECTION_HOOK_DONE %s", json.dumps(result, ensure_ascii=False))
+        return result
+    if not _legacy_enabled():
+        return {"enabled":False}
+
     prepared={lot:publication._final_caption(lot) for _,_,lot in TARGETS}
     client=await mtproto_user_client._new_client(cozy_catalog)
     if not client: raise RuntimeError("MTProto Premium session is not authorized")
@@ -35,4 +50,5 @@ async def run():
             results.append({"channel":channel_name,"message_id":message_id,"lot":lot,"custom_emoji":custom})
         log.info("CORRECT_FB_1038134945777547_DONE %s",json.dumps(results,ensure_ascii=False))
         return {"enabled":True,"results":results}
-    finally: await client.disconnect()
+    finally:
+        await client.disconnect()
