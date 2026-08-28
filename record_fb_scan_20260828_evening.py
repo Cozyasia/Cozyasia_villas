@@ -64,6 +64,7 @@ ITEMS = [
         "utilities": "Internet, TV, pool/garden maintenance and well water included; electricity government rate; gas refills excluded",
         "minimum_stay": "Monthly; long-term prepayment discount mentioned but not quantified",
         "restrictions": "No smoking, no pets, no subletting, owner says no agents/middlemen",
+        "status": "rejected_no_agents",
         "original_text": "Large furnished 3-bedroom pool villa in Maenam Soi 5. Western kitchen, private pool, gated parking for 3 cars, garden. 75,000 THB/month; deposit 75,000 THB. Internet, TV, pool/garden maintenance and well water included. Electricity at government rate and gas refills excluded. No smoking, pets or subletting. Listing explicitly says no agents or middlemen.",
     },
     {
@@ -148,7 +149,7 @@ def run():
         src_row = [
             now, item["source_id"], item["source_url"], item["owner_url"], item["price"],
             item["original_text"], item["availability"], "[]", "{}", "{}",
-            "new_needs_owner_reply", notes,
+            item.get("status", "new_needs_owner_reply"), notes,
         ]
         if item["source_id"] in src_index:
             src.update(f"A{src_index[item['source_id']]}:L{src_index[item['source_id']]}", [src_row], value_input_option="RAW")
@@ -167,7 +168,7 @@ def run():
             now, item["source_id"], item["owner"], item["source_url"], item["owner_url"],
             item["availability"], item["price"], item["deposit"], item["utilities"],
             "Advance/payment method and booking point require owner confirmation",
-            "awaiting_contact", own_notes,
+            item.get("status", "awaiting_contact"), own_notes,
         ]
         if item["source_id"] in own_index:
             own.update(f"A{own_index[item['source_id']]}:L{own_index[item['source_id']]}", [own_row], value_input_option="RAW")
