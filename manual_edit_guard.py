@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Protect intentional/Premium channel edits from automatic standardization."""
+"""Protect intentional/Premium channel edits and enforce channel bot routing."""
 import logging
 
 log = logging.getLogger("manual-edit-guard")
@@ -33,6 +33,18 @@ def apply(post_standardizer):
 
     post_standardizer._external_links = external_links_without_telegram
 
+    # Permanent routing rule for all future standardized listings. The bot that
+    # edits a channel is NOT necessarily the bot the public CTA should open.
+    # @samuirental -> @cozy_asia_bot
+    # @arenda_vill_samui -> @Cozyasia_villa_bot
+    try:
+        import cozy_catalog
+        import channel_bot_routing
+        channel_bot_routing.apply_to_standardizer(post_standardizer, cozy_catalog)
+    except Exception:
+        log.exception("Could not apply permanent channel bot routing")
+        raise
+
     async def guarded(catalog, update, context):
         # A human administrator editing an existing channel post is authoritative.
         if getattr(update, "edited_channel_post", None) is not None:
@@ -59,4 +71,4 @@ def apply(post_standardizer):
         return await original(catalog, update, context)
 
     post_standardizer.standardize_future = guarded
-    log.info("Manual/Premium edit guard + Telegram-link filter applied")
+    log.info("Manual/Premium edit guard + Telegram-link filter + channel bot routing applied")
