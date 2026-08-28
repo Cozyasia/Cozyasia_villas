@@ -84,6 +84,24 @@ ITEMS = [
         "restrictions": "No pets; no subletting",
         "original_text": "3-bedroom, 3-bathroom private pool villa in Chaweng with modern kitchen, poolside dining and parking. Advertised 90,000 THB/month; deposit 45,000 THB. Wi-Fi included; water and electricity at government rates; cleaning and linen change once per month. No pets and no subletting.",
     },
+    {
+        "source_id": "facebook_marketplace_1049399697893052",
+        "source_url": "https://www.facebook.com/marketplace/item/1049399697893052/",
+        "owner_url": "https://www.facebook.com/marketplace/profile/61585416185668/?product_id=1049399697893052",
+        "owner": "Mali Marisa",
+        "price": "45000",
+        "district": "Nathon",
+        "type": "house/villa",
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "pool": "not advertised",
+        "availability": "Advertised available; owner confirmation pending",
+        "deposit": "2 months plus 1 month rent in advance",
+        "utilities": "Wi-Fi 900 THB/month; water 400 THB/person; electricity government bill",
+        "minimum_stay": "Long-term rental; exact minimum term not specified",
+        "restrictions": "Pet friendly",
+        "original_text": "Brand-new furnished 3-bedroom, 2-bathroom villa in Nathon with private parking. Advertised from 45,000 THB/month for long-term rental. Wi-Fi 900 THB/month, water 400 THB/person and electricity by government bill. Deposit 2 months plus 1 month rent in advance. Pets allowed.",
+    },
 ]
 
 
