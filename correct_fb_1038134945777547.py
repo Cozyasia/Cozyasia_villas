@@ -4,6 +4,7 @@ import asyncio, json, logging, os
 import cozy_catalog, mtproto_user_client, publication_safety
 import publish_fb_1038134945777547 as publication
 import channel_bot_routing
+import legacy_author_bot_cta_fix
 
 log=logging.getLogger("correct-fb-1038134945777547")
 TARGETS=(("samuirental",4945,"1185"),("arenda_vill_samui",891,"1182"))
@@ -14,14 +15,14 @@ def _legacy_enabled():
 
 
 def enabled():
-    # Reuse this already-wired startup hook for the one-time channel-wide bot
-    # routing migration, without changing main.py or creating a second runner.
     return _legacy_enabled() or channel_bot_routing.enabled()
 
 
 async def run():
     if channel_bot_routing.enabled():
-        result = await channel_bot_routing.run(cozy_catalog)
+        routing_result = await channel_bot_routing.run(cozy_catalog)
+        fallback_result = await legacy_author_bot_cta_fix.run()
+        result = {"routing": routing_result, "legacy_author_fallback": fallback_result}
         log.info("CHANNEL_BOT_ROUTING_VIA_CORRECTION_HOOK_DONE %s", json.dumps(result, ensure_ascii=False))
         return result
     if not _legacy_enabled():
