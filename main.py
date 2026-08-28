@@ -34,6 +34,7 @@ import publish_fb_1038134945777547
 import correct_fb_1038134945777547
 import publish_fb_1405490825011828
 import publish_fb_28520466234226624
+import publish_airbnb_1074551173034733330
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -190,6 +191,16 @@ def _publish_fb_28520466234226624_on_startup():
         log.exception("Facebook Baan Tai publication failed")
 
 
+def _publish_airbnb_1074551173034733330_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(publish_airbnb_1074551173034733330.run())
+        if result.get("enabled"):
+            log.info("Airbnb Aqua Jai publication complete: %s", result)
+    except Exception:
+        log.exception("Airbnb Aqua Jai publication failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -221,7 +232,7 @@ def main():
         log.info("Skipping catalog normalization/repair during hashtag reorder migration")
     legacy.cmd_start=smart_start; legacy.free_text=catalog_aware_free_text
     app=legacy.build_application()
-    if not correct_fb_1038134945777547.enabled() and not publish_fb_28520466234226624.enabled():
+    if not correct_fb_1038134945777547.enabled() and not publish_fb_28520466234226624.enabled() and not publish_airbnb_1074551173034733330.enabled():
         _install_catalog_handlers(app)
     else:
         log.info("One-shot publication/correction mode: catalog/channel mutation handlers are disabled")
@@ -233,6 +244,8 @@ def main():
         threading.Thread(target=_publish_fb_1405490825011828_on_startup,name="publish-fb-1405490825011828",daemon=True).start()
     if publish_fb_28520466234226624.enabled():
         threading.Thread(target=_publish_fb_28520466234226624_on_startup,name="publish-fb-28520466234226624",daemon=True).start()
+    if publish_airbnb_1074551173034733330.enabled():
+        threading.Thread(target=_publish_airbnb_1074551173034733330_on_startup,name="publish-airbnb-1074551173034733330",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
