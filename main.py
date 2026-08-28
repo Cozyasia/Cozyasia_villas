@@ -35,6 +35,7 @@ import correct_fb_1038134945777547
 import publish_fb_1405490825011828
 import publish_fb_28520466234226624
 import publish_airbnb_1074551173034733330
+import publish_fb_replies_20260828
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -201,6 +202,16 @@ def _publish_airbnb_1074551173034733330_on_startup():
         log.exception("Airbnb Aqua Jai publication failed")
 
 
+def _publish_fb_replies_20260828_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(publish_fb_replies_20260828.run())
+        if result.get("enabled"):
+            log.info("Facebook owner-reply publications complete: %s", result)
+    except Exception:
+        log.exception("Facebook owner-reply publications failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -246,6 +257,8 @@ def main():
         threading.Thread(target=_publish_fb_28520466234226624_on_startup,name="publish-fb-28520466234226624",daemon=True).start()
     if publish_airbnb_1074551173034733330.enabled():
         threading.Thread(target=_publish_airbnb_1074551173034733330_on_startup,name="publish-airbnb-1074551173034733330",daemon=True).start()
+    if publish_fb_replies_20260828.enabled():
+        threading.Thread(target=_publish_fb_replies_20260828_on_startup,name="publish-fb-replies-20260828",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
