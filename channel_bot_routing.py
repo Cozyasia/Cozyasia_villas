@@ -159,7 +159,10 @@ def _append_missing_ctas(text: str, entities, channel_name: str, lot: str, is_me
         )
     html_text = html_text.rstrip() + "\n\n" + "\n".join(additions)
     new_text, new_entities = telethon_html.parse(html_text)
-    limit = 1024 if is_media else 4096
+    # These edits are sent through the authorized Premium MTProto account. The
+    # two remaining historical media captions are already >1024 characters and
+    # valid in Telegram; Premium captions allow up to 2048 characters.
+    limit = 2048 if is_media else 4096
     if len(new_text) > limit:
         raise RuntimeError(
             f"Cannot append missing CTAs without exceeding Telegram limit: "
@@ -175,8 +178,6 @@ async def _edit_listing(client, channel_name: str, msg, lot: str):
     new_text, text_changed = _rewrite_plain_bot_mentions(text, channel_name)
     new_entities, entity_changed = _rewrite_entities(entities, channel_name)
 
-    # Visible username replacement changes offsets. Rebuild through Telethon HTML
-    # only in that uncommon case so custom emoji/text-url formatting remains valid.
     if text_changed:
         from telethon.extensions import html as telethon_html
         html_text = telethon_html.unparse(text, entities)
