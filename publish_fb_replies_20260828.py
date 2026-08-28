@@ -190,8 +190,11 @@ async def _correct_colliding_lots(client):
     results = []
     for item_index, channel_name, message_id, lot in corrections:
         channel = await client.get_entity(channel_name)
-        text, entities = _final_caption(LISTINGS[item_index], lot, channel_name)
-        await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
+        current = await client.get_messages(channel, ids=message_id)
+        actual = publication_safety.lot_from_message(current)
+        if actual != lot:
+            text, entities = _final_caption(LISTINGS[item_index], lot, channel_name)
+            await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
         verify = await client.get_messages(channel, ids=message_id)
         actual = publication_safety.lot_from_message(verify)
         if actual != lot:
