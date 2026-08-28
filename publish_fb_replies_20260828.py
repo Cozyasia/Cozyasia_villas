@@ -16,7 +16,7 @@ import mtproto_user_client
 import publication_safety
 
 log = logging.getLogger("publish-fb-replies-20260828")
-BOT_USERNAME = "Cozyasia_villa_bot"
+BOT_BY_CHANNEL = {"samuirental": "cozy_asia_bot", "arenda_vill_samui": "Cozyasia_villa_bot"}
 
 LISTINGS = [
     {
@@ -104,7 +104,8 @@ def enabled():
     return os.getenv("PUBLISH_FB_REPLIES_20260828", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _caption_html(item, lot):
+def _caption_html(item, lot, channel_name):
+    bot_username = BOT_BY_CHANNEL[channel_name]
     return f"""🏡 <b>ЛОТ №{lot}</b>
 
 💬 <b>ОПИСАНИЕ</b>
@@ -117,14 +118,16 @@ def _caption_html(item, lot):
 {item['terms']}
 
 📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
-👉 <a href="https://t.me/{BOT_USERNAME}?start=rent_{lot}"><b>НАПИСАТЬ БОТУ</b></a> 👈
+👉 <a href="https://t.me/{bot_username}?start=rent_{lot}"><b>НАПИСАТЬ БОТУ</b></a> 👈
+
+🔎 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href="https://t.me/{bot_username}?start=search"><b>НАПИСАТЬ БОТУ</b></a> 🤖
 
 #АрендаСамуи #ВиллаСамуи #ДомСамуи #KohSamuiRental #CozyAsia"""
 
 
-def _final_caption(item, lot):
+def _final_caption(item, lot, channel_name):
     from telethon.extensions import html as telethon_html
-    text, entities = telethon_html.parse(_caption_html(item, lot))
+    text, entities = telethon_html.parse(_caption_html(item, lot, channel_name))
     text, entities, changed = mtproto_user_client.upgrade_text(text, entities, lot)
     if not changed:
         raise RuntimeError("Premium conversion failed")
@@ -193,7 +196,7 @@ async def run():
                             raise RuntimeError(f"Could not determine latest lot for @{channel_name}")
                         lot = str(int(previous) + 1)
                         await publication_safety.assert_next_lot(client, channel, lot)
-                        text, entities = _final_caption(item, lot)
+                        text, entities = _final_caption(item, lot, channel_name)
                         sent = await client.send_file(channel, photos, caption=text, formatting_entities=entities)
                         messages = sent if isinstance(sent, list) else [sent]
                         caption_msg = next((m for m in messages if getattr(m, "message", None)), messages[0])
