@@ -101,7 +101,8 @@ LISTINGS = [
 
 
 def enabled():
-    return os.getenv("PUBLISH_FB_REPLIES_20260828", "0").strip().lower() in {"1", "true", "yes", "on"}
+    flags = ("PUBLISH_FB_REPLIES_20260828", "CORRECT_FB_REPLIES_LOTS_20260828")
+    return any(os.getenv(name, "0").strip().lower() in {"1", "true", "yes", "on"} for name in flags)
 
 
 def _caption_html(item, lot, channel_name):
@@ -178,6 +179,43 @@ def _store_source(item, results):
         av.append_row([datetime.now(timezone.utc).isoformat(timespec="seconds"), item["source_id"], item["owner"], item["source_url"], item["owner_url"], "Confirmed 2026-08-28", item["original_price"], "See publication/source reply", "See publication/source reply", "Deposit / owner confirmation", "published", item["notes"]], value_input_option="RAW")
 
 
+async def _correct_colliding_lots(client):
+    corrections = [
+        (0, "samuirental", 4984, "1185"),
+        (1, "samuirental", 4989, "1186"),
+        (2, "samuirental", 4994, "1187"),
+        (3, "samuirental", 4998, "1188"),
+        (3, "arenda_vill_samui", 930, "1186"),
+    ]
+    results = []
+    for item_index, channel_name, message_id, lot in corrections:
+        channel = await client.get_entity(channel_name)
+        text, entities = _final_caption(LISTINGS[item_index], lot, channel_name)
+        await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
+        verify = await client.get_messages(channel, ids=message_id)
+        actual = publication_safety.lot_from_message(verify)
+        if actual != lot:
+            raise RuntimeError(f"Correction read-back mismatch @{channel_name} {message_id}: {actual} != {lot}")
+        results.append({"source_id": LISTINGS[item_index]["source_id"], "channel": channel_name, "lot": lot, "message_id": message_id})
+
+    sh = await asyncio.to_thread(lambda: cozy_catalog._client().open_by_key(cozy_catalog.SHEET_ID))
+    ws = await asyncio.to_thread(sh.worksheet, "SourceRegistry")
+    rows = await asyncio.to_thread(ws.get_all_values)
+    by_source = {item["source_id"]: [] for item in LISTINGS}
+    for result in results:
+        by_source[result["source_id"]].append(result)
+    for row_index, row in enumerate(rows[1:], start=2):
+        source_id = row[1] if len(row) > 1 else ""
+        if source_id not in by_source:
+            continue
+        item_results = by_source[source_id]
+        lots = {r["channel"]: r["lot"] for r in item_results}
+        messages = {r["channel"]: r["message_id"] for r in item_results}
+        await asyncio.to_thread(ws.update, f"I{row_index}:J{row_index}", [[json.dumps(lots, ensure_ascii=False), json.dumps(messages, ensure_ascii=False)]], value_input_option="RAW")
+    log.info("CORRECT_FB_REPLIES_LOTS_20260828_DONE %s", json.dumps(results, ensure_ascii=False))
+    return {"corrected": results}
+
+
 async def run():
     if not enabled():
         return {"enabled": False}
@@ -186,6 +224,8 @@ async def run():
         raise RuntimeError("MTProto Premium session is not authorized")
     published = []
     try:
+        if os.getenv("CORRECT_FB_REPLIES_LOTS_20260828", "0").strip().lower() in {"1", "true", "yes", "on"}:
+            return await _correct_colliding_lots(client)
         with tempfile.TemporaryDirectory(prefix="fb-replies-") as tmp:
             for item in LISTINGS:
                 photos = await asyncio.to_thread(_download_photos, item, tmp)
