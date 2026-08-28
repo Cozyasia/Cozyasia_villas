@@ -141,12 +141,17 @@ def _download_photos(item, root):
     out = []
     for idx, url in enumerate(item["photos"], 1):
         path = Path(root) / f"{item['source_id']}_{idx:02d}.jpg"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=30) as src, path.open("wb") as dst:
-            dst.write(src.read())
-        if path.stat().st_size < 10_000:
-            raise RuntimeError(f"Downloaded image is too small: {path}")
-        out.append(str(path))
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as src, path.open("wb") as dst:
+                dst.write(src.read())
+            if path.stat().st_size < 10_000:
+                raise RuntimeError(f"Downloaded image is too small: {path}")
+            out.append(str(path))
+        except Exception as exc:
+            log.warning("Skipping unavailable Facebook photo %s/%s: %s", item["source_id"], idx, exc)
+    if not out:
+        raise RuntimeError(f"No usable photos for {item['source_id']}")
     return out
 
 
