@@ -6,9 +6,9 @@ Permanent rule:
 - small channel @arenda_vill_samui -> @Cozyasia_villa_bot for BOTH application and search CTAs.
 
 The migration edits existing listing messages in place via the authorized Premium
-MTProto account and preserves their text, media and formatting entities. Only
-Telegram deep-link destinations (and explicit visible old bot mentions, if any)
-are changed.
+MTProto account and preserves their text, media and formatting entities. Telegram
+deep-link destinations are corrected and, where an old listing has no application
+or search CTA at all, the missing CTA is appended with the channel's assigned bot.
 """
 from __future__ import annotations
 
@@ -134,14 +134,46 @@ def _rewrite_entities(entities, channel: str):
     return new_entities, changed
 
 
-async def _edit_listing(client, channel_name: str, msg):
+def _append_missing_ctas(text: str, entities, channel_name: str, lot: str, is_media: bool):
+    """Append only missing application/search CTAs while preserving rich entities."""
+    urls = _deep_link_urls(entities)
+    missing_rent = not _has_payload(urls, "rent")
+    missing_search = not _has_payload(urls, "search")
+    if not missing_rent and not missing_search:
+        return text, list(entities or []), False
+
+    from telethon.extensions import html as telethon_html
+    html_text = telethon_html.unparse(text, list(entities or []))
+    additions = []
+    if missing_rent:
+        rent = bot_url(channel_name, f"rent_{lot}")
+        additions.append(
+            f'📝 <b>ОСТАВИТЬ ЗАЯВКУ</b> — '
+            f'<a href="{rent}"><b>ЖМИ ЗДЕСЬ</b></a>'
+        )
+    if missing_search:
+        search = bot_url(channel_name, "search")
+        additions.append(
+            f'🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — '
+            f'<a href="{search}"><b>НАПИСАТЬ БОТУ</b></a> 🤖'
+        )
+    html_text = html_text.rstrip() + "\n\n" + "\n".join(additions)
+    new_text, new_entities = telethon_html.parse(html_text)
+    limit = 1024 if is_media else 4096
+    if len(new_text) > limit:
+        raise RuntimeError(
+            f"Cannot append missing CTAs without exceeding Telegram limit: "
+            f"len={len(new_text)} limit={limit} lot={lot}"
+        )
+    return new_text, new_entities, True
+
+
+async def _edit_listing(client, channel_name: str, msg, lot: str):
     from telethon.errors import MessageNotModifiedError
     text = getattr(msg, "message", None) or ""
     entities = list(getattr(msg, "entities", None) or [])
     new_text, text_changed = _rewrite_plain_bot_mentions(text, channel_name)
     new_entities, entity_changed = _rewrite_entities(entities, channel_name)
-    if not text_changed and not entity_changed:
-        return "unchanged"
 
     # Visible username replacement changes offsets. Rebuild through Telethon HTML
     # only in that uncommon case so custom emoji/text-url formatting remains valid.
@@ -153,13 +185,24 @@ async def _edit_listing(client, channel_name: str, msg):
             if old.lower() == target.lower():
                 continue
             html_text = re.sub(r"@" + re.escape(old) + r"\b", "@" + target, html_text, flags=re.I)
-        # Also enforce all rent/search hrefs while HTML is available.
+
         def repl_href(m):
             old = m.group(1)
             new, _ = _rewrite_deep_link(old, channel_name)
             return f'href="{new}"'
+
         html_text = re.sub(r'href="([^"]+)"', repl_href, html_text, flags=re.I)
         new_text, new_entities = telethon_html.parse(html_text)
+
+    new_text, new_entities, cta_changed = _append_missing_ctas(
+        new_text,
+        new_entities,
+        channel_name,
+        lot,
+        bool(getattr(msg, "media", None)),
+    )
+    if not text_changed and not entity_changed and not cta_changed:
+        return "unchanged"
 
     try:
         await client.edit_message(
@@ -198,7 +241,7 @@ async def _scan_channel(client, channel_name: str) -> dict:
             continue
         stats["listing_posts"] += 1
         try:
-            result = await _edit_listing(client, channel_name, msg)
+            result = await _edit_listing(client, channel_name, msg, lot)
             stats[result] += 1
             if result == "edited":
                 await asyncio.sleep(0.38)
