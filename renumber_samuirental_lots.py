@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""One-shot in-place sequential renumbering for recent @samuirental albums."""
+"""One-shot repair of recent @samuirental sequence and duplicate publications."""
 import asyncio
 import json
 import logging
@@ -7,40 +7,57 @@ import os
 
 import cozy_catalog
 import mtproto_user_client
-import post_layout_v6_premium as premium
 import publication_safety
+import publish_fb_replies_20260828 as publication
 
 log = logging.getLogger("renumber-samuirental-lots")
 
-TARGETS = (
-    (4955, "1186"),
-    (4965, "1187"),
-    (4984, "1188"),
-    (4989, "1189"),
-    (4994, "1190"),
-    (4998, "1191"),
+EDITS = (
+    (0, "samuirental", 4974, "1188"),
+    (1, "samuirental", 4979, "1189"),
+    (2, "samuirental", 4994, "1190"),
+    (3, "samuirental", 4998, "1191"),
 )
+DUPLICATE_BIG_IDS = tuple(range(4984, 4994))
+DUPLICATE_SMALL_IDS = (930,)
 
 
 def enabled():
     return os.getenv("RENUMBER_SAMUIRENTAL_LOTS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _keycaps(lot):
-    return "".join(ch + "\ufe0f\u20e3" for ch in str(lot))
+async def _edit(client, item_index, channel_name, message_id, lot):
+    channel = await client.get_entity(channel_name)
+    current = await client.get_messages(channel, ids=message_id)
+    if not current:
+        raise RuntimeError(f"Missing @{channel_name}/{message_id}")
+    old = publication_safety.lot_from_message(current)
+    text, entities = publication._final_caption(publication.LISTINGS[item_index], lot, channel_name)
+    await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
+    await asyncio.sleep(2)
+    verify = await client.get_messages(channel, ids=message_id)
+    publication_safety.validate_premium_caption(verify.message or "", verify.entities or [], lot)
+    return {"channel": channel_name, "message_id": message_id, "old_lot": old, "new_lot": lot,
+            "custom_emoji": sum(type(e).__name__ == "MessageEntityCustomEmoji" for e in (verify.entities or []))}
 
 
-def _replace_header_fallback(text, lot):
-    lines = (text or "").splitlines()
-    if not lines:
-        raise RuntimeError("Message has no caption")
-    line = lines[0]
-    first_digit = next((i for i, ch in enumerate(line) if ch.isdigit()), -1)
-    if first_digit < 0:
-        raise RuntimeError("Premium header fallback digits were not found")
-    line = line[:first_digit] + _keycaps(lot)
-    lines[0] = line
-    return "\n".join(lines)
+def _update_registry(results):
+    sh = cozy_catalog._client().open_by_key(cozy_catalog.SHEET_ID)
+    ws = sh.worksheet("SourceRegistry")
+    rows = ws.get_all_values()
+    by_source = {}
+    for item_index, channel_name, message_id, lot in EDITS:
+        source_id = publication.LISTINGS[item_index]["source_id"]
+        by_source.setdefault(source_id, []).append({"channel": channel_name, "message_id": message_id, "lot": lot})
+    for row_index, row in enumerate(rows[1:], start=2):
+        source_id = row[1] if len(row) > 1 else ""
+        if source_id not in by_source:
+            continue
+        values = by_source[source_id]
+        lots = {x["channel"]: x["lot"] for x in values}
+        messages = {x["channel"]: x["message_id"] for x in values}
+        ws.update(f"H{row_index}:J{row_index}", [[json.dumps(list(lots), ensure_ascii=False),
+            json.dumps(lots, ensure_ascii=False), json.dumps(messages, ensure_ascii=False)]], value_input_option="RAW")
 
 
 async def run():
@@ -51,44 +68,22 @@ async def run():
         raise RuntimeError("MTProto Premium session is not authorized")
     results = []
     try:
-        channel = await client.get_entity("samuirental")
-        inverse_digit_ids = {int(v): k for k, v in premium.DIGIT_IDS.items() if k.isdigit()}
-        target_digit_ids = {k: int(v) for k, v in premium.DIGIT_IDS.items() if k.isdigit()}
-        for message_id, lot in TARGETS:
-            msg = await client.get_messages(channel, ids=message_id)
-            if not msg:
-                raise RuntimeError(f"Missing @samuirental/{message_id}")
-            old_lot = publication_safety.lot_from_message(msg)
-            text = _replace_header_fallback(msg.message or "", lot)
-            entities = list(msg.entities or [])
-            top_u16 = len(text.splitlines()[0].encode("utf-16-le")) // 2
-            digit_entities = [
-                e for e in sorted(entities, key=lambda x: int(getattr(x, "offset", 0)))
-                if type(e).__name__ == "MessageEntityCustomEmoji"
-                and int(getattr(e, "offset", 0)) < top_u16
-                and int(getattr(e, "document_id", 0)) in inverse_digit_ids
-            ]
-            if len(digit_entities) != len(lot):
-                raise RuntimeError(f"Header digit entity mismatch @{message_id}: {len(digit_entities)}")
-            for ent, digit in zip(digit_entities, lot):
-                ent.document_id = target_digit_ids[digit]
-            for ent in entities:
-                url = str(getattr(ent, "url", "") or "")
-                if "start=rent_" in url:
-                    ent.url = url.split("start=rent_", 1)[0] + "start=rent_" + lot
-            publication_safety.validate_premium_caption(text, entities, lot)
-            await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
-            await asyncio.sleep(2)
-            verify = await client.get_messages(channel, ids=message_id)
-            decoded = publication_safety.lot_from_message(verify)
-            urls = [str(getattr(e, "url", "") or "") for e in (verify.entities or [])]
-            custom = sum(type(e).__name__ == "MessageEntityCustomEmoji" for e in (verify.entities or []))
-            if decoded != lot:
-                raise RuntimeError(f"Read-back mismatch @{message_id}: {decoded!r} != {lot!r}")
-            if not any(f"start=rent_{lot}" in u for u in urls):
-                raise RuntimeError(f"Read-back rent link mismatch @{message_id}")
-            results.append({"message_id": message_id, "old_lot": old_lot, "new_lot": lot, "custom_emoji": custom})
-        log.info("RENUMBER_SAMUIRENTAL_LOTS_DONE %s", json.dumps(results, ensure_ascii=False))
-        return {"enabled": True, "results": results}
+        for args in EDITS:
+            results.append(await _edit(client, *args))
+        big = await client.get_entity("samuirental")
+        small = await client.get_entity("arenda_vill_samui")
+        await client.delete_messages(big, list(DUPLICATE_BIG_IDS))
+        await client.delete_messages(small, list(DUPLICATE_SMALL_IDS))
+        await asyncio.sleep(3)
+        for message_id in DUPLICATE_BIG_IDS:
+            if await client.get_messages(big, ids=message_id):
+                raise RuntimeError(f"Duplicate big-channel message still exists: {message_id}")
+        for message_id in DUPLICATE_SMALL_IDS:
+            if await client.get_messages(small, ids=message_id):
+                raise RuntimeError(f"Duplicate small-channel message still exists: {message_id}")
+        await asyncio.to_thread(_update_registry, results)
+        payload={"edits":results,"deleted_big":list(DUPLICATE_BIG_IDS),"deleted_small":list(DUPLICATE_SMALL_IDS)}
+        log.info("RENUMBER_SAMUIRENTAL_LOTS_DONE %s", json.dumps(payload, ensure_ascii=False))
+        return {"enabled": True, **payload}
     finally:
         await client.disconnect()
