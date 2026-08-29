@@ -32,10 +32,13 @@ async def _edit(client, item_index, channel_name, message_id, lot):
     if not current:
         raise RuntimeError(f"Missing @{channel_name}/{message_id}")
     old = publication_safety.lot_from_message(current)
-    text, entities = publication._final_caption(publication.LISTINGS[item_index], lot, channel_name)
-    await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
-    await asyncio.sleep(2)
-    verify = await client.get_messages(channel, ids=message_id)
+    if old == lot:
+        verify = current
+    else:
+        text, entities = publication._final_caption(publication.LISTINGS[item_index], lot, channel_name)
+        await client.edit_message(channel, message_id, text, formatting_entities=entities, link_preview=False)
+        await asyncio.sleep(2)
+        verify = await client.get_messages(channel, ids=message_id)
     publication_safety.validate_premium_caption(verify.message or "", verify.entities or [], lot)
     return {"channel": channel_name, "message_id": message_id, "old_lot": old, "new_lot": lot,
             "custom_emoji": sum(type(e).__name__ == "MessageEntityCustomEmoji" for e in (verify.entities or []))}
