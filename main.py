@@ -37,6 +37,7 @@ import publish_fb_28520466234226624
 import publish_airbnb_1074551173034733330
 import publish_fb_replies_20260828
 import record_fb_scan_20260828_evening
+import record_fb_scan_20260829_morning
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -223,6 +224,16 @@ def _record_fb_scan_20260828_evening_on_startup():
         log.exception("Facebook evening scan registry update failed")
 
 
+def _record_fb_scan_20260829_morning_on_startup():
+    time.sleep(8)
+    try:
+        result = record_fb_scan_20260829_morning.run()
+        if result.get("enabled"):
+            log.info("Facebook morning scan registry update complete: %s", result)
+    except Exception:
+        log.exception("Facebook morning scan registry update failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -272,6 +283,8 @@ def main():
         threading.Thread(target=_publish_fb_replies_20260828_on_startup,name="publish-fb-replies-20260828",daemon=True).start()
     if record_fb_scan_20260828_evening.enabled():
         threading.Thread(target=_record_fb_scan_20260828_evening_on_startup,name="record-fb-scan-20260828-evening",daemon=True).start()
+    if record_fb_scan_20260829_morning.enabled():
+        threading.Thread(target=_record_fb_scan_20260829_morning_on_startup,name="record-fb-scan-20260829-morning",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
