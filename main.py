@@ -39,6 +39,7 @@ import publish_fb_replies_20260828
 import record_fb_scan_20260828_evening
 import record_fb_scan_20260829_morning
 import diagnose_samuirental_lots
+import renumber_samuirental_lots
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -245,6 +246,16 @@ def _diagnose_samuirental_lots_on_startup():
         log.exception("Samuirental lot diagnostic failed")
 
 
+def _renumber_samuirental_lots_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(renumber_samuirental_lots.run())
+        if result.get("enabled"):
+            log.info("Samuirental in-place renumbering complete: %s", result)
+    except Exception:
+        log.exception("Samuirental in-place renumbering failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -296,6 +307,8 @@ def main():
         threading.Thread(target=_record_fb_scan_20260828_evening_on_startup,name="record-fb-scan-20260828-evening",daemon=True).start()
     if record_fb_scan_20260829_morning.enabled():
         threading.Thread(target=_record_fb_scan_20260829_morning_on_startup,name="record-fb-scan-20260829-morning",daemon=True).start()
+    if renumber_samuirental_lots.enabled():
+        threading.Thread(target=_renumber_samuirental_lots_on_startup,name="renumber-samuirental-lots",daemon=True).start()
     if diagnose_samuirental_lots.enabled():
         threading.Thread(target=_diagnose_samuirental_lots_on_startup,name="diagnose-samuirental-lots",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
