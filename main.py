@@ -38,6 +38,7 @@ import publish_airbnb_1074551173034733330
 import publish_fb_replies_20260828
 import record_fb_scan_20260828_evening
 import record_fb_scan_20260829_morning
+import diagnose_samuirental_lots
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -234,6 +235,16 @@ def _record_fb_scan_20260829_morning_on_startup():
         log.exception("Facebook morning scan registry update failed")
 
 
+def _diagnose_samuirental_lots_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(diagnose_samuirental_lots.run())
+        if result.get("enabled"):
+            log.info("Samuirental lot diagnostic complete: %s", result)
+    except Exception:
+        log.exception("Samuirental lot diagnostic failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -285,6 +296,8 @@ def main():
         threading.Thread(target=_record_fb_scan_20260828_evening_on_startup,name="record-fb-scan-20260828-evening",daemon=True).start()
     if record_fb_scan_20260829_morning.enabled():
         threading.Thread(target=_record_fb_scan_20260829_morning_on_startup,name="record-fb-scan-20260829-morning",daemon=True).start()
+    if diagnose_samuirental_lots.enabled():
+        threading.Thread(target=_diagnose_samuirental_lots_on_startup,name="diagnose-samuirental-lots",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
