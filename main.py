@@ -41,6 +41,7 @@ import record_fb_scan_20260829_morning
 import record_fb_scan_20260829_evening
 import record_fb_scan_20260830_morning
 import record_fb_scan_20260830_evening
+import record_fb_scan_20260831_morning
 import diagnose_samuirental_lots
 import renumber_samuirental_lots
 
@@ -269,6 +270,16 @@ def _record_fb_scan_20260830_evening_on_startup():
     except Exception:
         log.exception("Facebook 2026-08-30 evening scan registry update failed")
 
+
+def _record_fb_scan_20260831_morning_on_startup():
+    time.sleep(8)
+    try:
+        result = record_fb_scan_20260831_morning.run()
+        if result.get("enabled"):
+            log.info("Facebook 2026-08-31 morning scan registry update complete: %s", result)
+    except Exception:
+        log.exception("Facebook 2026-08-31 morning scan registry update failed")
+
 def _diagnose_samuirental_lots_on_startup():
     time.sleep(8)
     try:
@@ -346,6 +357,8 @@ def main():
         threading.Thread(target=_record_fb_scan_20260830_morning_on_startup,name="record-fb-scan-20260830-morning",daemon=True).start()
     if record_fb_scan_20260830_evening.enabled():
         threading.Thread(target=_record_fb_scan_20260830_evening_on_startup,name="record-fb-scan-20260830-evening",daemon=True).start()
+    if record_fb_scan_20260831_morning.enabled():
+        threading.Thread(target=_record_fb_scan_20260831_morning_on_startup,name="record-fb-scan-20260831-morning",daemon=True).start()
     if renumber_samuirental_lots.enabled():
         threading.Thread(target=_renumber_samuirental_lots_on_startup,name="renumber-samuirental-lots",daemon=True).start()
     if diagnose_samuirental_lots.enabled():
