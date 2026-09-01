@@ -45,6 +45,7 @@ import record_fb_scan_20260831_morning
 import record_fb_scan_20260901_morning
 import diagnose_samuirental_lots
 import renumber_samuirental_lots
+import replace_lot_1191
 
 catalog_fixes.apply(cozy_catalog)
 catalog_feedback_patch.apply(cozy_catalog)
@@ -310,6 +311,16 @@ def _renumber_samuirental_lots_on_startup():
         log.exception("Samuirental in-place renumbering failed")
 
 
+def _replace_lot_1191_on_startup():
+    time.sleep(8)
+    try:
+        result = asyncio.run(replace_lot_1191.run())
+        if result.get("enabled"):
+            log.info("Lot 1191 replacement complete: %s", result)
+    except Exception:
+        log.exception("Lot 1191 replacement failed")
+
+
 def _install_catalog_handlers(app):
     if not HASHTAG_REORDER_MODE:
         template_capture_mode.install(app,cozy_catalog)
@@ -375,6 +386,8 @@ def main():
         threading.Thread(target=_renumber_samuirental_lots_on_startup,name="renumber-samuirental-lots",daemon=True).start()
     if diagnose_samuirental_lots.enabled():
         threading.Thread(target=_diagnose_samuirental_lots_on_startup,name="diagnose-samuirental-lots",daemon=True).start()
+    if replace_lot_1191.enabled():
+        threading.Thread(target=_replace_lot_1191_on_startup,name="replace-lot-1191",daemon=True).start()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
