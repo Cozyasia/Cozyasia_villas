@@ -16,7 +16,7 @@ log = logging.getLogger("replace-lot-1191")
 FLAG = "REPLACE_LOT_1191"
 CHANNEL = "samuirental"
 LOT = "1191"
-OLD_MESSAGE_ID = 4998
+OLD_MESSAGE_ID = 4999
 ASSET_DIR = Path(__file__).with_name("publication_assets") / "lot_1191_owner"
 PHOTO_NAMES = (
     "01_bathroom.jpg.b64",
@@ -58,7 +58,7 @@ def _caption():
 🗺 <a href="https://maps.google.com/?q=Bophut+Hills+Koh+Samui"><b>ГЕОЛОКАЦИЯ РАЙОНА</b></a>
 
 💰 <b>УСЛОВИЯ АРЕНДЫ</b>
-💵 Цена: 50 000 THB/мес
+💵 Цена: 85 000 THB/мес
 📅 Срок аренды: от 2 месяцев до 1 года
 ✅ Доступность: свободна сейчас
 🔐 Депозит: 1 месяц аренды
@@ -117,7 +117,7 @@ async def run():
         # Idempotency: if a later multi-photo lot 1191 already exists, keep it and
         # only remove the obsolete single-photo source message.
         existing = await publication_safety.find_duplicate_listing(
-            client, channel, ("Бопхут, холмы", "Интернет 1 Гбит/с", "50 000"), limit=80
+            client, channel, ("Бопхут, холмы", "Интернет 1 Гбит/с", "85 000"), limit=80
         )
         if existing and int(existing.id) != OLD_MESSAGE_ID:
             if old:
