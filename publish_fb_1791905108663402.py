@@ -42,7 +42,7 @@ def _caption_html(lot: str) -> str:
     return f"""🏡 <b>ЛОТ №{lot}</b>
 
 💬 <b>ОПИСАНИЕ</b>
-<blockquote>Просторная полностью меблированная вилла с приватным бассейном в районе Plai Laem Soi 8. Три спальни, три полноценные ванные комнаты и гостевой санузел, большая гостиная, оборудованная кухня, терраса, сад и крытая приватная парковка. Удобное расположение рядом с Big Buddha, храмом Plai Laem, Fisherman’s Village, магазинами, ресторанами и пляжами Choeng Mon и Thong Son.</blockquote>
+<blockquote>Полностью меблированная вилла с приватным бассейном в Plai Laem Soi 8. Три спальни, три ванные комнаты и гостевой санузел, гостиная, оборудованная кухня, терраса, сад и крытая парковка. Рядом Big Buddha, храм Plai Laem, Fisherman’s Village, магазины, рестораны и пляжи Choeng Mon и Thong Son.</blockquote>
 
 📍 Район: Plai Laem, Soi 8
 🗺 <a href="https://maps.google.com/?q=Plai+Laem+Soi+8+Koh+Samui"><b>РАЙОН НА КАРТЕ</b></a>
