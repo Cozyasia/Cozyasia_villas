@@ -13,6 +13,11 @@ URLS=[
  "https://m.facebook.com/marketplace/item/2236326640522113/?locale=en_US",
  "https://propertyhub.in.th/en/listings/sea-view-2-bedroom-villa-for-rent-near-chaweng-5587827---5327189",
  "https://www.fazwaz.co.th/en/property-rent/2-bedroom-villa-for-rent-at-chaweng-modern-villas-in-bo-phut-surat-thani-u5587827",
+ "https://www.samuitimes.com/property-rent/2-bedroom-villa-for-rent-at-chaweng-modern-villas-in-bo-phut-surat-thani-u5587827",
+ "https://www.kaibaanthai.com/en/property-rent/2-bedroom-villa-for-rent-at-chaweng-modern-villas-in-bo-phut-surat-thani-u5587827",
+ "https://www.property-hua-hin.com/property-rent/2-bedroom-villa-for-rent-at-chaweng-modern-villas-in-bo-phut-surat-thani-u5587827",
+ "https://www.108siam.com/en/property-rent/2-bedroom-villa-for-rent-at-chaweng-modern-villas-in-bo-phut-surat-thani-u5587827",
+ "https://www.livephuket.com/property-rent/2-bedroom-villa-for-rent-at-chaweng-modern-villas-in-bo-phut-surat-thani-u5587827",
 ]
 
 def enabled():
