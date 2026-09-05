@@ -70,7 +70,7 @@ def _caption_html(lot: str) -> str:
 📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
 👉 <a href="https://t.me/{BOT_USERNAME}?start=rent_{lot}"><b>НАПИСАТЬ БОТУ</b></a> 👈
 
-🔎 ДРУГИЕ ВАРИАНТЫ — <a href="https://t.me/{BOT_USERNAME}?start=search"><b>НАПИСАТЬ БОТУ</b></a> 🤖
+🔎 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href="https://t.me/{BOT_USERNAME}?start=search"><b>НАПИСАТЬ БОТУ</b></a> 🤖
 
 #АрендаСамуи #Маенам #ВиллаСамуи #ДомСамуи #PoolVilla #KohSamuiRental #CozyAsia"""
 
