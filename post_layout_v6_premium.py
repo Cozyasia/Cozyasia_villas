@@ -135,6 +135,7 @@ def apply(mod, throttle):
                 lines += ["", f"✨ Дополнительно: {mod._esc(details_text)}"]
             for title, href in mod._external_links(links, bot)[:2]:
                 lines.append(f'<a href="{html.escape(href, quote=True)}">{mod._esc(title)}</a>')
+            lines += ["", "Оператор: @cozy_asia"]
             cta1 = _premium_word("ОСТАВИТЬ", CTA_IDS)
             cta2 = _premium_word("ЗАЯВКУ", CTA_IDS)
             lines += [
