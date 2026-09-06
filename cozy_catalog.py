@@ -191,7 +191,7 @@ def _existing(ws):
     return found,h
 def _record(p,old=None):
     d={h:"" for h in HEADERS}; d.update(_extract(p["text"])); d.update({"telegram_message_id":p["message_id"],"telegram_url":p["telegram_url"],"published_at":p["published_at"],"status":"active","исходный_текст":p["text"],"extracted_at":_now()})
-    if old and _blank(old.get("контакт_собственника")):d["контакт_собственника"]=old["контакт_собственника"]
+    if old and not _blank(old.get("контакт_собственника")):d["контакт_собственника"]=old["контакт_собственника"]
     if old and _blank(old.get("status")):d["status"]=norm_status(old["status"])
     return canonical(d,p["text"])
 def normalize_existing_rows():
