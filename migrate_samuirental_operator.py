@@ -160,12 +160,12 @@ async def run() -> dict:
                         raise RuntimeError(f"lot changed during migration: {old_lot!r} -> {new_lot!r}")
                 edited += 1
                 edited_ids.append(int(msg.id))
-                if edited % 25 == 0:
+                if edited % 10 == 0:
                     log.info(
                         "OPERATOR_MIGRATION_PROGRESS scanned=%s listings=%s edited=%s already=%s too_long=%s errors=%s",
                         scanned, listings, edited, already, too_long, errors,
                     )
-                await asyncio.sleep(0.35)
+                await asyncio.sleep(8.0)
             except FloodWaitError as exc:
                 wait = int(getattr(exc, "seconds", 0) or 0) + 2
                 log.warning("OPERATOR_MIGRATION_FLOOD_WAIT seconds=%s mid=%s", wait, msg.id)
