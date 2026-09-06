@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-import migrate_samuirental_operator
+import publish_small_lots_1200_1207
 
 def enabled():
     return os.getenv("DIAGNOSE_SAMUIRENTAL_LOTS","0").strip().lower() in {"1","true","yes","on"}
@@ -8,4 +8,4 @@ def enabled():
 async def run():
     if not enabled():
         return {"enabled":False}
-    return await migrate_samuirental_operator.run()
+    return await publish_small_lots_1200_1207.run()
