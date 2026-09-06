@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-import migrate_small_channel_operator
+import fix_small_lots_1200_1207_premium_cta
 
 def enabled():
     return os.getenv("DIAGNOSE_SAMUIRENTAL_LOTS","0").strip().lower() in {"1","true","yes","on"}
@@ -8,4 +8,4 @@ def enabled():
 async def run():
     if not enabled():
         return {"enabled":False}
-    return await migrate_small_channel_operator.run()
+    return await fix_small_lots_1200_1207_premium_cta.run()
