@@ -187,6 +187,12 @@ def validate_premium_caption(text: str, entities, lot: str) -> dict:
     if text.find(bot_label) < cta_pos:
         raise RuntimeError(f"{bot_label!r} may appear only in the final search CTA")
 
+    operator_line = "Оператор: @cozy_asia"
+    if text.count(operator_line) != 1:
+        raise RuntimeError(f"{operator_line!r} must appear exactly once")
+    if text.find(operator_line) > cta_pos:
+        raise RuntimeError("Operator line must appear before the final search CTA")
+
     lines = [line.rstrip() for line in text.splitlines()]
     tag_indexes = [i for i, line in enumerate(lines) if line.strip().startswith("#")]
     if not tag_indexes:
@@ -198,7 +204,7 @@ def validate_premium_caption(text: str, entities, lot: str) -> dict:
         stripped = line.strip()
         if stripped and not stripped.startswith("#"):
             raise RuntimeError("Only hashtags may appear after the first hashtag line")
-    return {"lot": lot, "custom_emoji": len(custom), "deep_links": "ok", "hashtags": "bottom", "bot_label": "final_only"}
+    return {"lot": lot, "custom_emoji": len(custom), "deep_links": "ok", "hashtags": "bottom", "bot_label": "final_only", "operator": "@cozy_asia"}
 
 
 async def find_duplicate_listing(client, channel, signature_terms, *, exclude_ids=None, limit: int = 120):
