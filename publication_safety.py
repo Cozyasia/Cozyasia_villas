@@ -160,8 +160,8 @@ async def assert_next_lot(client, channel, requested_lot: str, *, exclude_ids=No
 
 def validate_premium_caption(text: str, entities, lot: str) -> dict:
     lot = str(lot or "").strip()
-    if not lot.isdigit():
-        raise RuntimeError("Premium preflight requires a numeric lot")
+    if not lot.isdigit() or not _valid_sequence_lot(lot):
+        raise RuntimeError(f"Premium preflight requires a valid sequential Cozy Asia lot, got {lot!r}")
     fake = SimpleNamespace(message=text, entities=list(entities or []))
     decoded = lot_from_message(fake)
     if decoded != lot:
@@ -179,10 +179,26 @@ def validate_premium_caption(text: str, entities, lot: str) -> dict:
         raise RuntimeError("Search deep link is missing")
 
     cta_pos = text.find("ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ")
-    tag_pos = text.find("#АрендаСамуи")
-    if cta_pos < 0 or tag_pos < 0 or tag_pos < cta_pos:
-        raise RuntimeError("Hashtags must be below both CTA blocks")
-    return {"lot": lot, "custom_emoji": len(custom), "deep_links": "ok", "hashtags": "ok"}
+    if cta_pos < 0:
+        raise RuntimeError("Final search CTA is missing")
+    bot_label = "НАПИСАТЬ БОТУ"
+    if text.count(bot_label) != 1:
+        raise RuntimeError(f"{bot_label!r} must appear exactly once")
+    if text.find(bot_label) < cta_pos:
+        raise RuntimeError(f"{bot_label!r} may appear only in the final search CTA")
+
+    lines = [line.rstrip() for line in text.splitlines()]
+    tag_indexes = [i for i, line in enumerate(lines) if line.strip().startswith("#")]
+    if not tag_indexes:
+        raise RuntimeError("Hashtags are missing")
+    first_tag = min(tag_indexes)
+    if first_tag <= 0 or cta_pos > text.find(lines[first_tag].strip()):
+        raise RuntimeError("Hashtags must be below the final search CTA")
+    for line in lines[first_tag:]:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            raise RuntimeError("Only hashtags may appear after the first hashtag line")
+    return {"lot": lot, "custom_emoji": len(custom), "deep_links": "ok", "hashtags": "bottom", "bot_label": "final_only"}
 
 
 async def find_duplicate_listing(client, channel, signature_terms, *, exclude_ids=None, limit: int = 120):
