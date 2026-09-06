@@ -121,10 +121,10 @@ def install(app, catalog):
         raise ApplicationHandlerStop
 
     async def capture(update, context):
-        if not context.user_data.get("emoji_calibration_waiting"):
+        if not (context.user_data or {}).get("emoji_calibration_waiting"):
             return
         msg = update.effective_message
-        labels = list(context.user_data.get("emoji_calibration_labels") or (BASE_LABELS + DEFAULT_SUFFIX_LABELS))
+        labels = list((context.user_data or {}).get("emoji_calibration_labels") or (BASE_LABELS + DEFAULT_SUFFIX_LABELS))
         ids = _custom_entities(msg) if msg else []
         if len(ids) != len(labels):
             await msg.reply_text(
