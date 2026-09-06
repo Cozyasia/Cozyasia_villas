@@ -241,7 +241,8 @@ async def run() -> dict:
                     nonblank = [x.strip() for x in live.splitlines() if x.strip()]
                     if not nonblank or not nonblank[-1].startswith("#"):
                         raise RuntimeError(f"Lot {lot}: hashtags not at bottom after read-back")
-                    await asyncio.to_thread(_upsert_sheet, lot, verify, live, original, source_text, source_url, geo)
+                    # Spreadsheet persistence is intentionally done after Telegram publication
+                    # through the Drive connector. Sheets quota must never interrupt posting.
                     item = {
                         "lot":lot, "message_id":int(verify.id),
                         "url":f"https://t.me/{CHANNEL}/{verify.id}",
