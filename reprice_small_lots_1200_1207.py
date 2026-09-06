@@ -46,12 +46,30 @@ def price_block(daily: int, week: int) -> str:
     )
 
 def find_price_span(text: str):
-    start = text.find("💰\nУСЛОВИЯ АРЕНДЫ")
-    if start < 0:
+    marker = "УСЛОВИЯ АРЕНДЫ"
+    p = text.find(marker)
+    if p < 0:
         raise RuntimeError("price block start not found")
-    end = text.find("✨\n", start)
-    if end < 0:
+    start = text.rfind("\n", 0, p) + 1
+    # Include a standalone money-emoji line immediately above the heading.
+    if start > 0:
+        prev_end = start - 1
+        prev_start = text.rfind("\n", 0, prev_end) + 1
+        prev = text[prev_start:prev_end].strip()
+        if prev in {"💰", "💵"}:
+            start = prev_start
+
+    q = text.find("ВКЛЮЧЕНО", p)
+    if q < 0:
         raise RuntimeError("price block end not found")
+    end = text.rfind("\n", 0, q) + 1
+    # If the previous standalone line is the sparkle emoji, preserve it.
+    if end > 0:
+        prev_end = end - 1
+        prev_start = text.rfind("\n", 0, prev_end) + 1
+        prev = text[prev_start:prev_end].strip()
+        if prev == "✨":
+            end = prev_start
     return start, end
 
 def apply_block(text, entities, daily, week):
