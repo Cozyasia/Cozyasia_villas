@@ -98,4 +98,10 @@ def apply(mt):
         context.application.create_task(finish())
 
     mt.cmd_mtproto_qr = cmd_mtproto_qr_2fa
+    try:
+        import cozy_catalog
+        import cozy_stories_automation
+        cozy_stories_automation.ensure_started(cozy_catalog)
+    except Exception:
+        log.exception("Could not start Cozy Stories automation")
     log.info("MTProto secure 2FA patch enabled; password_configured=%s", bool(os.environ.get("MT_2FA_PASSWORD", "")))
