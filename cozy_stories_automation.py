@@ -121,9 +121,12 @@ async def _pick(client, channel, catalog, channel_name, now):
         if not m or not getattr(m,"photo",None): continue
         g=int(getattr(m,"grouped_id",0) or 0)
         if g and g in groups: continue
-        if g: groups.add(g)
         meta=_meta(m)
+        # Telegram albums often return an uncaptioned photo before the one carrying
+        # the listing caption. Do not consume the grouped_id until a usable member
+        # of the album has actually been accepted.
         if not meta["lot"] and not re.search(r"(?i)вилл|дом|апартамент|студи|villa|house|condo",meta["text"]): continue
+        if g: groups.add(g)
         pool.append((m,meta))
     fresh=[x for x in pool if int(x[0].id) not in used] or pool
     promos=[x for x in fresh if x[1]["promo"]]
