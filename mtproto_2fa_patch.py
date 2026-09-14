@@ -101,6 +101,8 @@ def apply(mt):
     try:
         import cozy_catalog
         import cozy_stories_automation
+        import cozy_stories_v2_patch
+        cozy_stories_v2_patch.apply(cozy_stories_automation)
         cozy_stories_automation.ensure_started(cozy_catalog)
     except Exception:
         log.exception("Could not start Cozy Stories automation")
