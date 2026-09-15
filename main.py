@@ -4,6 +4,10 @@ from main_legacy import *  # noqa: F401,F403
 import main_legacy as _entry
 import cozy_catalog
 import cozy_traffic_runtime
+import cozy_traffic_scoring_patch
+
+cozy_traffic_scoring_patch.apply(cozy_traffic_runtime)
+
 import cozy_traffic_manager
 
 _original_install = _entry._install_catalog_handlers
