@@ -53,6 +53,30 @@ def test_offer_is_not_a_lead():
     assert score == 0 and band == "LOW"
 
 
+def test_listing_from_real_scan_is_not_a_lead():
+    text = "Аренда: Новая 2-спальная вилла на Бопхуте. Контракт от 6 месяцев. Стоимость 65 000 THB в месяц. По вопросам бронирования пишите в ЛС."
+    score, band, _ = traffic.score_rental_request(text)
+    assert score == 0 and band == "LOW"
+
+
+def test_restaurant_ad_with_doma_is_not_housing_lead():
+    text = "На Самуи сырники из домашнего творога, как дома. Кафе на Ламаи. Хотите попробовать?"
+    score, band, _ = traffic.score_rental_request(text)
+    assert score == 0 and band == "LOW"
+
+
+def test_driving_licence_post_with_perevodom_is_not_housing_lead():
+    text = "Какие документы нужны: водительские права с английским переводом. Не нужно сдавать экзамен."
+    score, band, _ = traffic.score_rental_request(text)
+    assert score == 0 and band == "LOW"
+
+
+def test_terse_real_housing_request_still_qualifies():
+    text = "Нужна 2-спальная вилла на Бопхуте с ноября на 3 месяца, бюджет до 80000 бат."
+    score, band, _ = traffic.score_rental_request(text)
+    assert score >= 70 and band == "HOT"
+
+
 def test_runtime_has_no_telegram_write_calls():
     source = open("cozy_traffic_runtime.py", encoding="utf-8").read()
     forbidden = ("send_message(", "edit_message(", "delete_messages(", "SendMessageRequest", "JoinChannelRequest", "InviteToChannelRequest")
