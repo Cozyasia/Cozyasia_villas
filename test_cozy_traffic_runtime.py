@@ -3,6 +3,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import cozy_traffic_runtime as traffic
+import cozy_traffic_scoring_patch
+
+cozy_traffic_scoring_patch.apply(traffic)
 
 
 class Entity:
