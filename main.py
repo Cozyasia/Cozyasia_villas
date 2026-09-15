@@ -5,8 +5,10 @@ import main_legacy as _entry
 import cozy_catalog
 import cozy_traffic_runtime
 import cozy_traffic_scoring_patch
+import cozy_traffic_discovery_patch
 
 cozy_traffic_scoring_patch.apply(cozy_traffic_runtime)
+cozy_traffic_discovery_patch.apply(cozy_traffic_runtime)
 
 import cozy_traffic_manager
 
