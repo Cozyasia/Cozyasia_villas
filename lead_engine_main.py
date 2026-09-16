@@ -2,6 +2,7 @@
 """Dedicated Cozy Lead Engine Render entrypoint."""
 from __future__ import annotations
 
+import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
@@ -53,6 +54,14 @@ def _start_health_server() -> None:
     log.info("Health server listening on port %s", port)
 
 
+def _ensure_event_loop_for_polling() -> None:
+    """Install a current loop for python-telegram-bot under Python 3.14+."""
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
+
 def main() -> None:
     token = _required_token()
 
@@ -62,6 +71,7 @@ def main() -> None:
     app = Application.builder().token(token).post_init(_post_init).build()
     lead_engine_control.install_handlers(app, cozy_catalog)
     _start_health_server()
+    _ensure_event_loop_for_polling()
     log.info("Cozy Lead Engine starting polling")
     app.run_polling(drop_pending_updates=False)
 
