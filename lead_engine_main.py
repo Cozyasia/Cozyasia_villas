@@ -11,6 +11,7 @@ import threading
 
 from telegram.ext import Application
 
+import ai_manager_auth
 import cozy_catalog
 import cozy_traffic_runtime
 import cozy_traffic_scoring_patch
@@ -71,6 +72,7 @@ def main() -> None:
 
     app = Application.builder().token(token).post_init(_post_init).build()
     lead_engine_control.install_handlers(app, cozy_catalog)
+    ai_manager_auth.install_handlers(app, cozy_catalog)
     _start_health_server()
     _ensure_event_loop_for_polling()
     log.info("Cozy Lead Engine starting polling")
