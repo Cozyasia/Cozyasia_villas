@@ -1,0 +1,16 @@
+from pathlib import Path
+
+
+def test_lead_engine_entrypoint_uses_dedicated_bot_token_and_polling():
+    source = Path('lead_engine_main.py').read_text(encoding='utf-8')
+    assert 'COZY_LEAD_BOT_TOKEN' in source
+    assert 'run_polling' in source
+    assert 'lead_engine_control.install_handlers' in source
+    assert 'cozy_traffic_scoring_patch.apply' in source
+    assert 'cozy_traffic_discovery_patch.apply' in source
+    assert 'ThreadingHTTPServer' in source
+
+
+def test_lead_engine_entrypoint_does_not_use_villa_bot_token_name():
+    source = Path('lead_engine_main.py').read_text(encoding='utf-8')
+    assert 'TELEGRAM_BOT_TOKEN' not in source
