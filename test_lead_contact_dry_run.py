@@ -115,3 +115,31 @@ def test_bot_sender_is_rejected():
         assert 'bot' in str(exc).lower()
     else:
         raise AssertionError('bot sender must be rejected')
+
+
+def test_generate_ai_draft_uses_supplied_client_without_network():
+    m = load_module()
+    calls = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            calls.update(kwargs)
+            class Message:
+                content = '  Здравствуйте! Есть подходящие варианты, уточню детали.  '
+            class Choice:
+                message = Message()
+            class Result:
+                choices = [Choice()]
+            return Result()
+
+    class Chat:
+        completions = Completions()
+
+    class Client:
+        chat = Chat()
+
+    draft = m.generate_ai_draft(sample_opportunity(), client=Client(), model='test-model')
+    assert draft == 'Здравствуйте! Есть подходящие варианты, уточню детали.'
+    assert calls['model'] == 'test-model'
+    assert calls['messages'][0]['role'] == 'system'
+    assert calls['messages'][1]['role'] == 'user'
