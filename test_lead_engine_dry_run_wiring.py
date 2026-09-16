@@ -10,4 +10,4 @@ def test_lead_engine_control_wires_dry_run_flow():
     assert 'pattern=r"^draft:(send|edit|cancel):"' in src
     assert 'MessageHandler' in src
     assert 'COZY_LEAD_CONTACT_MODE' in src or 'live_send_enabled' in src
-    assert 'send_message(' not in src or 'application.bot.send_message' in src
+    assert 'client.send_message' not in src
