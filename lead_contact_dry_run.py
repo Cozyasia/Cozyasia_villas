@@ -128,6 +128,8 @@ async def resolve_recipient(client: Any, source_username: str, message_id: int) 
                 raise RecipientResolutionError(f"Could not resolve sender: {exc.__class__.__name__}") from exc
     if sender is None:
         raise RecipientResolutionError("Message sender is unavailable")
+    if getattr(sender, "title", None) and not (hasattr(sender, "first_name") or hasattr(sender, "last_name")):
+        raise RecipientResolutionError("Message sender is not a user/person")
     if bool(getattr(sender, "bot", False)):
         raise RecipientResolutionError("Message sender is a bot")
 
