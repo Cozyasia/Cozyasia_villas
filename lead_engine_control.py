@@ -13,9 +13,12 @@ import logging
 import os
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler, CommandHandler
+from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 import cozy_traffic_manager as manager
+import lead_contact_dry_run as lead_contact_dry_run
+import lead_contact_flow
+import lead_draft_store
 
 log = logging.getLogger("cozy-lead-engine-control")
 CONFIG_SHEET = "LeadEngineConfig"
@@ -35,6 +38,10 @@ def _config_ws(catalog):
 
 def _actions_ws(catalog):
     return manager._worksheet(catalog, ACTIONS_SHEET, ACTION_HEADERS, 3000)
+
+
+def _draft_ws(catalog):
+    return manager._worksheet(catalog, lead_contact_flow.DRAFT_SHEET, lead_draft_store.DRAFT_HEADERS, 3000)
 
 
 def _set_config(catalog, key: str, value: str) -> None:
@@ -78,6 +85,36 @@ def _lead_key(lead) -> str:
 def _callback_data(action: str, lead) -> str:
     source = str(lead.source_username).strip().lstrip("@")[:32]
     return f"lead:{action}:{source}:{lead.message_id}"
+
+
+def _draft_keyboard(key: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🚀 Отправить", callback_data=lead_draft_store.callback_data("send", key)),
+            InlineKeyboardButton("✏️ Изменить", callback_data=lead_draft_store.callback_data("edit", key)),
+        ],
+        [InlineKeyboardButton("❌ Отмена", callback_data=lead_draft_store.callback_data("cancel", key))],
+    ])
+
+
+def _recipient_from_draft(record: dict[str, str]) -> lead_contact_dry_run.Recipient:
+    return lead_contact_dry_run.Recipient(
+        telegram_id=int(record.get("recipient_id") or 0),
+        username=record.get("recipient_username", ""),
+        display_name=record.get("recipient_name", ""),
+    )
+
+
+def _draft_preview_from_record(record: dict[str, str]) -> str:
+    opportunity = {
+        "source_username": record.get("source_username", ""),
+        "message_id": record.get("message_id", ""),
+    }
+    return lead_contact_dry_run.build_dry_run_preview(
+        opportunity,
+        _recipient_from_draft(record),
+        record.get("draft", ""),
+    )
 
 
 def _build_card_text(lead) -> str:
@@ -128,10 +165,12 @@ async def cmd_start(update, context, catalog):
         return
     chat_id = int(update.effective_chat.id)
     await asyncio.to_thread(_set_config, catalog, "admin_chat_id", str(chat_id))
+    mode = lead_contact_dry_run.contact_mode()
     await update.effective_message.reply_text(
         "✅ Cozy Lead Engine подключён.\n\n"
         "Я буду мониторить approved-источники и присылать сюда новые HOT/WARM запросы. "
         "Первый контакт с человеком выполняется только после твоего подтверждения.\n\n"
+        f"Контактный режим: {mode}.\n"
         "Команды: /traffic_sources /traffic_discover /traffic_scan /traffic_opportunities"
     )
 
@@ -149,16 +188,136 @@ async def cmd_lead_action(update, context, catalog):
     if action not in {"approve", "skip"}:
         return
     key = f"{source}:{message_id}"
-    status = "approved_for_contact" if action == "approve" else "skipped"
     admin_username = (getattr(update.effective_user, "username", "") or "").lstrip("@")
+    status = "approved_for_contact" if action == "approve" else "skipped"
     await asyncio.to_thread(_set_action, catalog, key, status, admin_username)
-    await query.answer("Лид одобрен" if action == "approve" else "Лид пропущен")
+
+    if action == "skip":
+        await query.answer("Лид пропущен")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return
+
+    await query.answer("Готовлю AI-черновик…")
     try:
         await query.edit_message_reply_markup(reply_markup=None)
     except Exception:
         pass
-    if action == "approve":
-        await query.message.reply_text("✅ Контакт одобрен. Отправку через QZR Manager подключим следующим этапом.")
+
+    try:
+        prepared = await lead_contact_flow.prepare_dry_run(catalog, key, admin_username)
+    except Exception as exc:
+        log.exception("Lead dry-run preparation failed key=%s", key)
+        await asyncio.to_thread(_set_action, catalog, key, "draft_failed", admin_username)
+        await query.message.reply_text(
+            f"❌ Не удалось подготовить DRY RUN для {key}.\nПричина: {exc}"
+        )
+        return
+
+    preview = lead_contact_dry_run.build_dry_run_preview(
+        prepared.opportunity,
+        prepared.recipient,
+        prepared.draft,
+    )
+    await query.message.reply_text(
+        preview,
+        reply_markup=_draft_keyboard(key),
+        disable_web_page_preview=True,
+    )
+
+
+async def cmd_draft_action(update, context, catalog):
+    if not manager._admin_ok(update):
+        return
+    query = update.callback_query
+    if not query or not query.data:
+        return
+    try:
+        action, key = lead_draft_store.parse_callback(query.data)
+    except ValueError:
+        return
+
+    ws = await asyncio.to_thread(_draft_ws, catalog)
+    record = await asyncio.to_thread(lead_draft_store.get_draft, ws, key)
+    if not record:
+        await query.answer("Черновик не найден", show_alert=True)
+        return
+
+    if action == "cancel":
+        await asyncio.to_thread(lead_draft_store.update_status, ws, key, "canceled")
+        if context.user_data.get("lead_draft_edit_key") == key:
+            context.user_data.pop("lead_draft_edit_key", None)
+        await query.answer("Отменено")
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await query.message.reply_text("❌ Черновик отменён. Сообщение клиенту не отправлялось.")
+        return
+
+    if action == "edit":
+        context.user_data["lead_draft_edit_key"] = key
+        await query.answer("Жду новый текст")
+        await query.message.reply_text(
+            "✏️ Отправь следующим обычным сообщением полный новый текст. "
+            "Он заменит текущий черновик; клиенту ничего не отправится."
+        )
+        return
+
+    # Safety gate: this milestone is deliberately dry-run only.
+    if lead_contact_dry_run.live_send_enabled():
+        await asyncio.to_thread(lead_draft_store.update_status, ws, key, "live_blocked")
+        await query.answer("LIVE SEND пока заблокирован", show_alert=True)
+        await query.message.reply_text(
+            "⚠️ LIVE SEND ещё не активирован в этом этапе. Сообщение НЕ отправлено. "
+            "Сначала завершаем контрольный DRY RUN."
+        )
+        return
+
+    await asyncio.to_thread(lead_draft_store.update_status, ws, key, "dry_run_approved")
+    await query.answer("DRY RUN подтверждён")
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await query.message.reply_text(
+        "🧪 DRY RUN PASS: текст одобрен. @CozyAsiaAI ничего не отправлял. "
+        "Статус сохранён как dry_run_approved."
+    )
+
+
+async def cmd_draft_edit_text(update, context, catalog):
+    if not manager._admin_ok(update):
+        return
+    key = context.user_data.get("lead_draft_edit_key")
+    if not key:
+        return
+    text = str(getattr(update.effective_message, "text", "") or "").strip()
+    if not text:
+        return
+    if len(text) > 3000:
+        await update.effective_message.reply_text("Текст слишком длинный. Ограничение для черновика — 3000 символов.")
+        return
+
+    ws = await asyncio.to_thread(_draft_ws, catalog)
+    record = await asyncio.to_thread(lead_draft_store.get_draft, ws, key)
+    if not record:
+        context.user_data.pop("lead_draft_edit_key", None)
+        await update.effective_message.reply_text("❌ Черновик не найден; режим редактирования сброшен.")
+        return
+
+    record["draft"] = text
+    record["status"] = "draft_edited"
+    await asyncio.to_thread(lead_draft_store.upsert_draft, ws, record)
+    context.user_data.pop("lead_draft_edit_key", None)
+    updated = await asyncio.to_thread(lead_draft_store.get_draft, ws, key)
+    await update.effective_message.reply_text(
+        _draft_preview_from_record(updated or record),
+        reply_markup=_draft_keyboard(key),
+        disable_web_page_preview=True,
+    )
 
 
 async def _monitor_loop(application, catalog) -> None:
@@ -213,10 +372,12 @@ async def post_init(application, catalog) -> None:
 def install_handlers(app, catalog) -> None:
     app.add_handler(CommandHandler("start", lambda u, c: cmd_start(u, c, catalog)), group=-30)
     app.add_handler(CallbackQueryHandler(lambda u, c: cmd_lead_action(u, c, catalog), pattern=r"^lead:(approve|skip):"), group=-30)
+    app.add_handler(CallbackQueryHandler(lambda u, c: cmd_draft_action(u, c, catalog), pattern=r"^draft:(send|edit|cancel):"), group=-29)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: cmd_draft_edit_text(u, c, catalog)), group=-29)
     app.add_handler(CommandHandler("traffic_discover", lambda u, c: manager.cmd_traffic_discover(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_sources", lambda u, c: manager.cmd_traffic_sources(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_approve", lambda u, c: manager.cmd_traffic_approve(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_reject", lambda u, c: manager.cmd_traffic_reject(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_scan", lambda u, c: manager.cmd_traffic_scan(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_opportunities", lambda u, c: manager.cmd_traffic_opportunities(u, c, catalog)), group=-20)
-    log.info("Cozy Lead Engine handlers installed")
+    log.info("Cozy Lead Engine handlers installed; contact_mode=%s", lead_contact_dry_run.contact_mode())
