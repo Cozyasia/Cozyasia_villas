@@ -9,14 +9,14 @@ import logging
 import os
 import threading
 
-from telegram.ext import Application
+from telegram.ext import Application, CommandHandler
 
-import ai_manager_auth
 import cozy_catalog
 import cozy_traffic_runtime
 import cozy_traffic_scoring_patch
 import cozy_traffic_discovery_patch
 import lead_engine_control
+import ai_manager_auth
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -27,6 +27,44 @@ log = logging.getLogger("cozy-lead-engine")
 
 cozy_traffic_scoring_patch.apply(cozy_traffic_runtime)
 cozy_traffic_discovery_patch.apply(cozy_traffic_runtime)
+
+
+def _lead_admin_ok(update) -> bool:
+    """Authorize the Lead Engine admin by stable Telegram user id, with username fallback."""
+    user = getattr(update, "effective_user", None)
+    chat = getattr(update, "effective_chat", None)
+    if not user or not chat or getattr(chat, "type", "") != "private":
+        return False
+
+    raw_id = os.getenv("COZY_TRAFFIC_ADMIN_USER_ID", "").strip()
+    if raw_id:
+        try:
+            if int(getattr(user, "id", 0) or 0) == int(raw_id):
+                return True
+        except ValueError:
+            log.warning("Invalid COZY_TRAFFIC_ADMIN_USER_ID value")
+
+    expected_username = os.getenv("COZY_TRAFFIC_ADMIN_USERNAME", "Cozy_asia").strip().lstrip("@").lower()
+    actual_username = (getattr(user, "username", "") or "").strip().lstrip("@").lower()
+    return bool(expected_username and actual_username == expected_username)
+
+
+async def _cmd_whoami(update, context):
+    """Private diagnostic command used to bind the stable admin Telegram user id."""
+    user = getattr(update, "effective_user", None)
+    chat = getattr(update, "effective_chat", None)
+    if not user or not chat or getattr(chat, "type", "") != "private":
+        return
+    username = (getattr(user, "username", "") or "без username").lstrip("@")
+    await update.effective_message.reply_text(
+        f"Telegram user ID: {getattr(user, 'id', '')}\nUsername: @{username}\n\n"
+        "Этот ID нужен один раз для привязки администратора Lead Engine."
+    )
+
+
+# All Lead Engine control modules import the same manager module object, so replacing
+# this predicate upgrades /start, traffic commands, callbacks and AI Manager auth at once.
+lead_engine_control.manager._admin_ok = _lead_admin_ok
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -71,8 +109,9 @@ def main() -> None:
         await lead_engine_control.post_init(application, cozy_catalog)
 
     app = Application.builder().token(token).post_init(_post_init).build()
-    lead_engine_control.install_handlers(app, cozy_catalog)
+    app.add_handler(CommandHandler("whoami", _cmd_whoami), group=-100)
     ai_manager_auth.install_handlers(app, cozy_catalog)
+    lead_engine_control.install_handlers(app, cozy_catalog)
     _start_health_server()
     _ensure_event_loop_for_polling()
     log.info("Cozy Lead Engine starting polling")
