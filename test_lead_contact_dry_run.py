@@ -117,6 +117,31 @@ def test_bot_sender_is_rejected():
         raise AssertionError('bot sender must be rejected')
 
 
+def test_channel_or_anonymous_sender_is_rejected():
+    m = load_module()
+
+    class Sender:
+        id = 555
+        username = 'source_channel'
+        title = 'Anonymous Admin'
+        bot = False
+
+    class Message:
+        async def get_sender(self):
+            return Sender()
+
+    class Client:
+        async def get_entity(self, value): return object()
+        async def get_messages(self, entity, ids): return Message()
+
+    try:
+        asyncio.run(m.resolve_recipient(Client(), 'SamuiGroup', 12345))
+    except m.RecipientResolutionError as exc:
+        assert 'user' in str(exc).lower() or 'person' in str(exc).lower()
+    else:
+        raise AssertionError('channel/anonymous sender must be rejected')
+
+
 def test_generate_ai_draft_uses_supplied_client_without_network():
     m = load_module()
     calls = {}
