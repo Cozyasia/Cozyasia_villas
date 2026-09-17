@@ -16,6 +16,7 @@ import cozy_traffic_runtime
 import cozy_traffic_scoring_patch
 import cozy_traffic_discovery_patch
 import lead_engine_control
+import lead_engine_selftest
 import ai_manager_auth
 
 logging.basicConfig(
@@ -112,6 +113,7 @@ def main() -> None:
     app.add_handler(CommandHandler("whoami", _cmd_whoami), group=-100)
     ai_manager_auth.install_handlers(app, cozy_catalog)
     lead_engine_control.install_handlers(app, cozy_catalog)
+    lead_engine_selftest.install_handlers(app, cozy_catalog)
     _start_health_server()
     _ensure_event_loop_for_polling()
     log.info("Cozy Lead Engine starting polling")
