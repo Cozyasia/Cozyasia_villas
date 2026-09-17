@@ -34,7 +34,7 @@ _PLACEHOLDER_PATTERNS = (
     re.compile(r"\[\s*(?:ваше\s+имя|имя|your\s+name|name)\s*\]", re.IGNORECASE),
     re.compile(r"<\s*(?:ваше\s+имя|имя|your\s+name|name)\s*>", re.IGNORECASE),
     re.compile(r"\{\s*(?:ваше\s+имя|имя|your\s+name|name)\s*\}", re.IGNORECASE),
-    re.compile(r"\byour\s+name\b", re.IGNORECASE),
+    re.compile(r"\bYOUR\s+NAME\b"),
 )
 
 
