@@ -38,11 +38,12 @@ class PlaceholderGuardTests(unittest.TestCase):
 
     def test_allows_normal_human_text(self):
         self.assertTrue(hasattr(contact, "contains_placeholder"))
-        self.assertFalse(
-            contact.contains_placeholder(
-                "Здравствуйте! Увидел ваш запрос по жилью на Самуи. Я из Cozy Asia."
-            )
-        )
+        for text in (
+            "Здравствуйте! Увидел ваш запрос по жилью на Самуи. Я из Cozy Asia.",
+            "Could you tell me your name and preferred dates?",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(contact.contains_placeholder(text))
 
     def test_generate_ai_draft_retries_once_when_first_draft_has_placeholder(self):
         client = _FakeClient([
