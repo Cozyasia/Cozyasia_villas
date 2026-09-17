@@ -10,7 +10,7 @@ def test_main_wires_safe_dry_run_selftest():
     assert 'CommandHandler("traffic_dry_run_test"' in module
     assert '"test_draft_ready"' in module
     assert 'Recipient(telegram_id=0' in module
-    assert '"🧪 SELF TEST"' in module
+    assert "🧪 SELF TEST" in module
 
 
 def test_selftest_has_no_recipient_send_or_resolution_path():
