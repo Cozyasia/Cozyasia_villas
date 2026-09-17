@@ -171,7 +171,62 @@ async def cmd_start(update, context, catalog):
         "Я буду мониторить approved-источники и присылать сюда новые HOT/WARM запросы. "
         "Первый контакт с человеком выполняется только после твоего подтверждения.\n\n"
         f"Контактный режим: {mode}.\n"
-        "Команды: /traffic_sources /traffic_discover /traffic_scan /traffic_opportunities"
+        "Команды: /traffic_sources /traffic_discover /traffic_scan /traffic_opportunities /traffic_recipient_test"
+    )
+
+
+async def cmd_traffic_recipient_test(update, context, catalog):
+    """Resolve the author of one real source message without contacting them."""
+    if not manager._admin_ok(update):
+        return
+    args = list(getattr(context, "args", None) or [])
+    if len(args) != 2:
+        await update.effective_message.reply_text(
+            "Использование: /traffic_recipient_test @source message_id\n"
+            "Пример: /traffic_recipient_test @samui_group 12345\n\n"
+            "Команда только определяет автора; сообщений человеку не отправляет."
+        )
+        return
+    source = str(args[0] or "").strip().lstrip("@")
+    try:
+        message_id = int(str(args[1]).strip())
+    except Exception:
+        message_id = 0
+    if not source or message_id <= 0:
+        await update.effective_message.reply_text(
+            "❌ Нужны корректные @source и положительный message_id."
+        )
+        return
+
+    import ai_manager_auth
+
+    client = await ai_manager_auth.new_client(catalog)
+    if not client:
+        await update.effective_message.reply_text(
+            "❌ AI Manager не авторизован. Проверь /manager_status."
+        )
+        return
+    try:
+        recipient = await lead_contact_dry_run.resolve_recipient(
+            client, source, message_id
+        )
+    except Exception as exc:
+        log.exception("Recipient probe failed source=%s message_id=%s", source, message_id)
+        await update.effective_message.reply_text(
+            f"❌ Не удалось определить автора @{source}/{message_id}.\nПричина: {exc}"
+        )
+        return
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+    await update.effective_message.reply_text(
+        lead_contact_dry_run.build_recipient_probe_preview(
+            source, message_id, recipient
+        ),
+        disable_web_page_preview=True,
     )
 
 
@@ -374,6 +429,7 @@ def install_handlers(app, catalog) -> None:
     app.add_handler(CallbackQueryHandler(lambda u, c: cmd_lead_action(u, c, catalog), pattern=r"^lead:(approve|skip):"), group=-30)
     app.add_handler(CallbackQueryHandler(lambda u, c: cmd_draft_action(u, c, catalog), pattern=r"^draft:(send|edit|cancel):"), group=-29)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: cmd_draft_edit_text(u, c, catalog)), group=-29)
+    app.add_handler(CommandHandler("traffic_recipient_test", lambda u, c: cmd_traffic_recipient_test(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_discover", lambda u, c: manager.cmd_traffic_discover(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_sources", lambda u, c: manager.cmd_traffic_sources(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_approve", lambda u, c: manager.cmd_traffic_approve(u, c, catalog)), group=-20)

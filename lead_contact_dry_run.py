@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 import os
+import re
 from typing import Any, Mapping
 
 
@@ -27,6 +28,19 @@ class Recipient:
         if self.display_name:
             return f"{self.display_name} · id {self.telegram_id}"
         return f"id {self.telegram_id}"
+
+
+_PLACEHOLDER_PATTERNS = (
+    re.compile(r"\[\s*(?:ваше\s+имя|имя|your\s+name|name)\s*\]", re.IGNORECASE),
+    re.compile(r"<\s*(?:ваше\s+имя|имя|your\s+name|name)\s*>", re.IGNORECASE),
+    re.compile(r"\{\s*(?:ваше\s+имя|имя|your\s+name|name)\s*\}", re.IGNORECASE),
+    re.compile(r"\bYOUR\s+NAME\b"),
+)
+
+
+def contains_placeholder(text: str) -> bool:
+    value = str(text or "")
+    return any(pattern.search(value) for pattern in _PLACEHOLDER_PATTERNS)
 
 
 def contact_mode() -> str:
@@ -57,7 +71,8 @@ def build_draft_prompt(opportunity: Mapping[str, Any]) -> tuple[str, str]:
     system = (
         "Ты менеджер Cozy Asia по аренде жилья на Самуи. Напиши только первое личное сообщение потенциальному клиенту. "
         "Сообщение должно быть естественным, коротким и персонализированным под исходный запрос, без ощущения массовой рассылки. "
-        "Пиши на языке исходного запроса. Представься от Cozy Asia ненавязчиво. "
+        "Пиши на языке исходного запроса. Представься от Cozy Asia ненавязчиво, но не придумывай личное имя менеджера. "
+        "Никогда не используй плейсхолдеры вроде [Ваше имя], [Имя], <name>, {name}, YOUR NAME или любые шаблонные маркеры. "
         "Не выдумывай цены, свободные объекты, availability/доступность, характеристики, даты или обещания, которых нет в фактах. "
         "Если важного параметра не хватает, задай максимум один полезный уточняющий вопрос. "
         "Не добавляй ссылки, если они не нужны для ответа на исходный запрос. Не используй канцелярит и агрессивные продажи."
@@ -66,9 +81,28 @@ def build_draft_prompt(opportunity: Mapping[str, Any]) -> tuple[str, str]:
     user = (
         "Подготовь первое сообщение для этого лида. Используй только известные факты ниже.\n\n"
         f"{facts}\n\n"
-        "Верни только готовый текст сообщения без комментариев, кавычек и служебных пометок."
+        "Верни только готовый текст сообщения без комментариев, кавычек, плейсхолдеров и служебных пометок."
     )
     return system, user
+
+
+def _request_draft(client: Any, model: str, system: str, user: str) -> str:
+    result = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.35,
+        max_tokens=280,
+    )
+    try:
+        text = str(result.choices[0].message.content or "").strip()
+    except Exception as exc:
+        raise DraftGenerationError("OpenAI returned no draft text") from exc
+    if not text:
+        raise DraftGenerationError("OpenAI returned an empty draft")
+    return text
 
 
 def generate_ai_draft(
@@ -85,21 +119,19 @@ def generate_ai_draft(
         client = OpenAI(api_key=api_key)
     selected_model = (model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")).strip() or "gpt-4o-mini"
     system, user = build_draft_prompt(opportunity)
-    result = client.chat.completions.create(
-        model=selected_model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.35,
-        max_tokens=280,
+    text = _request_draft(client, selected_model, system, user)
+    if not contains_placeholder(text):
+        return text
+
+    retry_user = (
+        user
+        + "\n\nПерепиши ответ заново. В предыдущем варианте был запрещён шаблонный плейсхолдер. "
+        "Не используй никакие [скобки], <name>, {name}, YOUR NAME или выдуманное личное имя менеджера. "
+        "Можно написать просто «Я из Cozy Asia»."
     )
-    try:
-        text = str(result.choices[0].message.content or "").strip()
-    except Exception as exc:
-        raise DraftGenerationError("OpenAI returned no draft text") from exc
-    if not text:
-        raise DraftGenerationError("OpenAI returned an empty draft")
+    text = _request_draft(client, selected_model, system, retry_user)
+    if contains_placeholder(text):
+        raise DraftGenerationError("AI draft still contains a placeholder after one retry")
     return text
 
 
@@ -144,6 +176,24 @@ async def resolve_recipient(client: Any, source_username: str, message_id: int) 
         ) if part
     ).strip()
     return Recipient(telegram_id=telegram_id, username=username, display_name=display_name)
+
+
+def build_recipient_probe_preview(
+    source_username: str,
+    message_id: int,
+    recipient: Recipient,
+) -> str:
+    source = str(source_username or "").strip().lstrip("@")
+    username = f"@{recipient.username}" if recipient.username else "—"
+    display_name = recipient.display_name or "—"
+    return (
+        "🔎 REAL RECIPIENT TEST — сообщение НЕ отправлено\n\n"
+        f"Источник: @{source}/{int(message_id)}\n"
+        f"Автор: {display_name}\n"
+        f"Username: {username}\n"
+        f"Telegram ID: {recipient.telegram_id}\n\n"
+        "✅ Автор исходного сообщения определён. @CozyAsiaAI этому человеку ничего не отправлял."
+    )[:3900]
 
 
 def build_dry_run_preview(
