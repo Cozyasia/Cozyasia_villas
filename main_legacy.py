@@ -36,6 +36,7 @@ import publish_fb_1405490825011828
 import publish_fb_28520466234226624
 import publish_airbnb_1074551173034733330
 import publish_fb_replies_20260828
+import publish_fb_1070904912524019
 import record_fb_scan_20260828_evening
 import record_fb_scan_20260829_morning
 import record_fb_scan_20260829_evening
@@ -388,6 +389,7 @@ def main():
         threading.Thread(target=_diagnose_samuirental_lots_on_startup,name="diagnose-samuirental-lots",daemon=True).start()
     if replace_lot_1191.enabled():
         threading.Thread(target=_replace_lot_1191_on_startup,name="replace-lot-1191",daemon=True).start()
+    publish_fb_1070904912524019.start_once()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
