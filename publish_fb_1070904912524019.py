@@ -107,6 +107,12 @@ def _update_registry(result: dict) -> None:
             ]], value_input_option="RAW")
             return
 
+def _safe_update_registry(result: dict) -> None:
+    try:
+        _update_registry(result)
+    except Exception:
+        log.exception("Registry update deferred; Telegram publication remains successful")
+
 async def run() -> dict:
     client = await mtproto_user_client._new_client(cozy_catalog)
     if not client:
@@ -119,7 +125,7 @@ async def run() -> dict:
         if duplicate:
             result = {"channel": CHANNEL, "lot": publication_safety.lot_from_message(duplicate),
                       "message_id": int(duplicate.id), "result": "already"}
-            await asyncio.to_thread(_update_registry, result)
+            await asyncio.to_thread(_safe_update_registry, result)
             return {"enabled": True, "result": result}
 
         previous = await publication_safety.latest_numeric_lot(client, channel, limit=300)
@@ -146,7 +152,7 @@ async def run() -> dict:
                 raise RuntimeError(f"Read-back signature missing: {signature}")
         result = {"channel": CHANNEL, "lot": lot, "message_id": int(caption_msg.id),
                   "result": "published", "photos": len(PHOTO_URLS)}
-        await asyncio.to_thread(_update_registry, result)
+        await asyncio.to_thread(_safe_update_registry, result)
         log.info("PUBLISH_FB_1070904912524019_DONE %s", json.dumps(result, ensure_ascii=False))
         return {"enabled": True, "result": result}
     finally:
