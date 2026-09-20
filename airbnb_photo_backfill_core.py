@@ -89,6 +89,14 @@ def hamming_distance(a: int, b: int) -> int:
     return int(a ^ b).bit_count()
 
 
+def rewrite_url_host(url: str, host: str) -> str:
+    """Rewrite only the hostname of a URL, preserving every other component."""
+    if not host:
+        return url
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, host, parts.path, parts.query, parts.fragment))
+
+
 def choose_additional_candidates(
     reference_images: Sequence[bytes],
     candidates: Sequence[tuple[str, bytes]],
