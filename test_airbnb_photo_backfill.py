@@ -10,6 +10,7 @@ from airbnb_photo_backfill_core import (
     filter_listing_photo_urls,
     select_additional_hashes,
     rewrite_url_host,
+    image_download_variants,
 )
 
 
@@ -95,3 +96,14 @@ def test_rewrite_url_host_preserves_scheme_path_query_and_fragment():
         'https://www.airbnb.ca/rooms/123?modal=PHOTO_TOUR_SCROLLABLE#gallery'
     )
     assert rewrite_url_host(source, '') == source
+
+
+def test_image_download_variants_fall_back_from_large_transform_to_known_good_hash_width():
+    url = 'https://a0.muscache.com/im/pictures/miso/Hosting-123/original/a.jpeg'
+    assert image_download_variants(url) == [
+        url + '?im_w=1600',
+        url + '?im_w=1200',
+        url + '?im_w=1080',
+        url + '?im_w=720',
+        url,
+    ]
