@@ -18,6 +18,11 @@ def _photo_backfill_mode() -> bool:
 
 if __name__ == "__main__" and _photo_backfill_mode():
     import backfill_small_lots_photos_1201_1207 as _photo_backfill
+    from airbnb_photo_download_fallback import download_full_image as _download_full_image
+
+    # Keep the production backfill module stable while providing a narrowly
+    # scoped CDN-size fallback only for this explicit maintenance mode.
+    _photo_backfill._download_full_image = _download_full_image
     _photo_backfill.run_service_mode()
 elif __name__ == "__main__" and _publication_mode():
     import publish_prepared_three_bootstrap_20260920 as _prepared
