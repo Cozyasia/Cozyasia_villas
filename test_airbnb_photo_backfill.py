@@ -9,6 +9,7 @@ from airbnb_photo_backfill_core import (
     insert_additional_photos_line,
     filter_listing_photo_urls,
     select_additional_hashes,
+    rewrite_url_host,
 )
 
 
@@ -86,3 +87,11 @@ def test_select_additional_hashes_uses_looser_reference_match_and_strict_candida
     assert [u for u, _ in select_additional_hashes(refs, candidates, ref_threshold=5, duplicate_threshold=1)] == [
         'extra-a', 'extra-b'
     ]
+
+
+def test_rewrite_url_host_preserves_scheme_path_query_and_fragment():
+    source = 'https://www.airbnb.com/rooms/123?modal=PHOTO_TOUR_SCROLLABLE#gallery'
+    assert rewrite_url_host(source, 'www.airbnb.ca') == (
+        'https://www.airbnb.ca/rooms/123?modal=PHOTO_TOUR_SCROLLABLE#gallery'
+    )
+    assert rewrite_url_host(source, '') == source
