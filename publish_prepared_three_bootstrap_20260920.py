@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 import shutil
 import sys
@@ -52,6 +53,11 @@ def _materialize_package() -> Path:
 def run_service_mode() -> None:
     if not enabled():
         raise RuntimeError("Prepared publication bootstrap is not enabled")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        force=True,
+    )
     root = _materialize_package()
     sys.path.insert(0, str(root))
     runtime = importlib.import_module("prepared_three_runtime")
