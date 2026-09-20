@@ -16,7 +16,14 @@ def _photo_backfill_mode() -> bool:
     return os.getenv("BACKFILL_SMALL_LOTS_PHOTOS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _photo_backfill_mode():
+def _drive_link_edit_mode() -> bool:
+    return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+if __name__ == "__main__" and _drive_link_edit_mode():
+    import edit_small_lots_drive_links_1201_1207 as _drive_link_edit
+    _drive_link_edit.run_service_mode()
+elif __name__ == "__main__" and _photo_backfill_mode():
     import backfill_small_lots_photos_1201_1207 as _photo_backfill
     from airbnb_photo_download_fallback import download_full_image as _download_full_image
 
