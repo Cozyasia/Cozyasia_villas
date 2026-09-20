@@ -1,21 +1,31 @@
 # -*- coding: utf-8 -*-
 """Production wrapper preserving the historical Cozy Asia entrypoint.
 
-The legacy module still contains one historical unconditional one-shot publisher.
-Disable only that startup hook here so ordinary deploys/restarts cannot create a
-Telegram post accidentally. Explicit publication flows are invoked separately.
+Ordinary starts disable the historical accidental one-shot publisher. The
+prepared three-villa publication is available only behind an explicit Render
+flag and runs through a separate bootstrap path.
 """
-from main_legacy import *  # noqa: F401,F403
-import main_legacy as _entry
+from __future__ import annotations
+import os
 
 
-def _disable_accidental_startup_publishers() -> None:
-    try:
-        _entry.publish_fb_1070904912524019.start_once = lambda: None
-    except Exception:
-        pass
+def _publication_mode() -> bool:
+    return os.getenv("PUBLISH_PREPARED_THREE_VILLAS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__":
-    _disable_accidental_startup_publishers()
-    _entry.main()
+if __name__ == "__main__" and _publication_mode():
+    import publish_prepared_three_bootstrap_20260920 as _prepared
+    _prepared.run_service_mode()
+else:
+    from main_legacy import *  # noqa: F401,F403
+    import main_legacy as _entry
+
+    def _disable_accidental_startup_publishers() -> None:
+        try:
+            _entry.publish_fb_1070904912524019.start_once = lambda: None
+        except Exception:
+            pass
+
+    if __name__ == "__main__":
+        _disable_accidental_startup_publishers()
+        _entry.main()
