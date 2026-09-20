@@ -5,6 +5,7 @@ google-auth-oauthlib==1.2.0
 cachetools==5.4.0
 requests==2.32.3
 beautifulsoup4==4.12.3
+Pillow>=10.0,<13.0
 openai>=1.42.0,<2.0.0
 python-dateutil==2.9.0
 dateparser==1.2.0
