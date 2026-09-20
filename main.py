@@ -3,7 +3,8 @@
 
 Ordinary starts disable the historical accidental one-shot publisher. The
 prepared three-villa publication is available only behind an explicit Render
-flag and runs through a separate bootstrap path.
+flag and runs through a separate bootstrap path. A separate Drive permission
+probe may run once before ordinary startup when explicitly configured.
 """
 from __future__ import annotations
 import os
@@ -26,6 +27,16 @@ else:
         except Exception:
             pass
 
+    def _run_drive_permission_probe_if_requested() -> None:
+        try:
+            import drive_public_permission_once as _drive_public
+            if _drive_public.enabled():
+                _drive_public.run()
+        except Exception:
+            import logging
+            logging.getLogger("drive-public-permission").exception("Drive public permission probe failed")
+
     if __name__ == "__main__":
         _disable_accidental_startup_publishers()
+        _run_drive_permission_probe_if_requested()
         _entry.main()
