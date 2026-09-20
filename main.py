@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """Production wrapper preserving the historical Cozy Asia entrypoint.
 
-Ordinary starts disable the historical accidental one-shot publisher. The
-prepared three-villa publication is available only behind an explicit Render
-flag and runs through a separate bootstrap path. A separate Drive permission
-probe may run once before ordinary startup when explicitly configured.
+Ordinary starts disable the historical accidental one-shot publisher. Gated
+maintenance/publication jobs are explicit and isolated from normal startup.
 """
 from __future__ import annotations
 import os
@@ -14,7 +12,14 @@ def _publication_mode() -> bool:
     return os.getenv("PUBLISH_PREPARED_THREE_VILLAS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _publication_mode():
+def _photo_backfill_mode() -> bool:
+    return os.getenv("BACKFILL_SMALL_LOTS_PHOTOS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+if __name__ == "__main__" and _photo_backfill_mode():
+    import backfill_small_lots_photos_1201_1207 as _photo_backfill
+    _photo_backfill.run_service_mode()
+elif __name__ == "__main__" and _publication_mode():
     import publish_prepared_three_bootstrap_20260920 as _prepared
     _prepared.run_service_mode()
 else:
