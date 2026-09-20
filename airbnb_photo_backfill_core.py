@@ -97,6 +97,23 @@ def rewrite_url_host(url: str, host: str) -> str:
     return urlunsplit((parts.scheme, host, parts.path, parts.query, parts.fragment))
 
 
+def image_download_variants(url: str) -> list[str]:
+    """Return preferred Airbnb CDN variants from high quality to safest fallback.
+
+    Airbnb's image CDN does not guarantee every requested transform width exists.
+    The 720px transform is already proven readable during the source hash gate, so
+    it is retained as the final transformed fallback before the canonical URL.
+    """
+    base = url.split('?', 1)[0]
+    return [
+        base + '?im_w=1600',
+        base + '?im_w=1200',
+        base + '?im_w=1080',
+        base + '?im_w=720',
+        base,
+    ]
+
+
 def choose_additional_candidates(
     reference_images: Sequence[bytes],
     candidates: Sequence[tuple[str, bytes]],
