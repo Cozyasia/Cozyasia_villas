@@ -11,7 +11,6 @@ import asyncio
 import json
 import logging
 import os
-import threading
 
 import backfill_small_lots_photos_1201_1207 as backfill
 
@@ -59,14 +58,15 @@ def run() -> dict:
     return asyncio.run(_run_async())
 
 
-def _worker() -> None:
-    try:
-        run()
-    except Exception:
-        log.exception("DRIVE_LINK_EDIT_FAILED")
-
-
 def run_service_mode() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s", force=True)
-    threading.Thread(target=_worker, name="drive-link-edit-1201-1207", daemon=True).start()
-    backfill._start_normal_service()
+    # Run the maintenance pass before starting the normal service. This keeps
+    # Google Sheets/MTProto session reads isolated from catalog bootstrap reads
+    # and avoids per-minute Sheets quota contention during maintenance.
+    try:
+        result = run()
+        log.info("DRIVE_LINK_EDIT_SERVICE_RESULT %s", json.dumps(result, ensure_ascii=False))
+    except Exception:
+        log.exception("DRIVE_LINK_EDIT_FAILED")
+    finally:
+        backfill._start_normal_service()
