@@ -7,6 +7,8 @@ from airbnb_photo_backfill_core import (
     hamming_distance,
     choose_additional_candidates,
     insert_additional_photos_line,
+    filter_listing_photo_urls,
+    select_additional_hashes,
 )
 
 
@@ -61,3 +63,26 @@ def test_insert_additional_photos_line_before_hashtags_and_idempotent():
         '📸 Дополнительные фото\n\n#Самуи #CozyAsia'
     )
     assert insert_additional_photos_line(updated, url) == updated
+
+
+def test_filter_listing_photo_urls_removes_user_avatars_but_keeps_old_and_encoded_listing_paths():
+    urls = [
+        'https://a0.muscache.com/im/pictures/abc.jpg',
+        'https://a0.muscache.com/im/pictures/hosting/Hosting-123/original/a.jpeg',
+        'https://a0.muscache.com/im/pictures/hosting/Hosting-U3RheVN1cHBseUxpc3Rpbmc6MTIz/original/b.png',
+        'https://a0.muscache.com/im/pictures/user/User-1/original/avatar.jpeg',
+    ]
+    assert filter_listing_photo_urls(urls) == urls[:3]
+
+
+def test_select_additional_hashes_uses_looser_reference_match_and_strict_candidate_dedupe():
+    refs = [0b00000000]
+    candidates = [
+        ('telegram-recompress', 0b00000111),
+        ('extra-a', 0b11111100),
+        ('extra-a-near-duplicate', 0b11111101),
+        ('extra-b', 0b11110011),
+    ]
+    assert [u for u, _ in select_additional_hashes(refs, candidates, ref_threshold=5, duplicate_threshold=1)] == [
+        'extra-a', 'extra-b'
+    ]
