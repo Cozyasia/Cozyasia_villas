@@ -3,11 +3,15 @@ from __future__ import annotations
 import html as html_lib
 import io
 import re
-from typing import Sequence
+from typing import Iterable, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 from PIL import Image
 
+_URL_RE = re.compile(
+    r'https?(?::|\\u003A)(?:\\/|/){2}a0\.muscache\.com(?:\\/|/)im(?:\\/|/)pictures(?:\\/|/)[^\"\'<>\s]+?',
+    re.I,
+)
 _IMG_EXT_RE = re.compile(r'\.(?:jpe?g|png|webp)(?:\?|$)', re.I)
 _EXCLUDE_PATH_MARKERS = (
     '/airbnb-platform-assets/',
@@ -43,8 +47,9 @@ def _canonical_image_url(url: str) -> str | None:
 def extract_muscache_candidates(raw_html: str) -> list[str]:
     """Extract unique Airbnb-hosted image URLs in source order.
 
-    Runtime validation must still verify that archived Telegram references match
-    the candidate set before any Drive write.
+    This is deliberately permissive about escaped JSON/HTML forms, but removes
+    known platform/UI asset families. Runtime validation still verifies that
+    archived Telegram references match the candidate set before any Drive write.
     """
     if not raw_html:
         return []
@@ -152,3 +157,47 @@ def insert_additional_photos_line(text: str, drive_url: str) -> str:
     if suffix:
         parts.append(suffix)
     return '\n\n'.join(p for p in parts if p)
+
+
+def filter_listing_photo_urls(urls: Sequence[str]) -> list[str]:
+    """Remove Airbnb user/avatar media while preserving listing gallery images.
+
+    Older Airbnb listings use generic /im/pictures/<uuid>.jpg paths and newer
+    listings may use either literal Hosting-<room_id> or an encoded Hosting token,
+    so filtering by room-id substring alone is intentionally avoided.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for url in urls:
+        low = (url or '').lower()
+        if '/im/pictures/user/' in low or '/im/pictures/userprofile/' in low:
+            continue
+        if url and url not in seen:
+            seen.add(url)
+            out.append(url)
+    return out
+
+
+def select_additional_hashes(
+    reference_hashes: Sequence[int],
+    candidates: Sequence[tuple[str, int]],
+    *,
+    ref_threshold: int = 5,
+    duplicate_threshold: int = 1,
+) -> list[tuple[str, int]]:
+    """Select source-gallery candidates not represented by Telegram references.
+
+    Reference matching is intentionally tolerant because the archived Telegram
+    image may be recompressed. Candidate-to-candidate dedupe is stricter so
+    genuinely different gallery frames are retained.
+    """
+    accepted: list[tuple[str, int]] = []
+    accepted_hashes: list[int] = []
+    for url, h in candidates:
+        if any(hamming_distance(h, ref) <= ref_threshold for ref in reference_hashes):
+            continue
+        if any(hamming_distance(h, old) <= duplicate_threshold for old in accepted_hashes):
+            continue
+        accepted.append((url, h))
+        accepted_hashes.append(h)
+    return accepted
