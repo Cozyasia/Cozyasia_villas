@@ -39,6 +39,7 @@ from airbnb_photo_backfill_core import (
     extract_muscache_candidates,
     filter_listing_photo_urls,
     hamming_distance,
+    rewrite_url_host,
     select_additional_hashes,
 )
 
@@ -59,6 +60,7 @@ LOTS = {
 }
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
+_ALLOWED_SOURCE_HOSTS = {"www.airbnb.com", "www.airbnb.ca", "www.airbnb.co.uk", "www.airbnb.de"}
 
 
 def _rss_mb() -> float:
@@ -79,6 +81,22 @@ def _selected_lots() -> list[str]:
     bad = [x for x in out if x not in LOTS]
     if bad:
         raise RuntimeError(f"Unknown lots requested: {bad}")
+    return out
+
+
+def _source_hosts() -> list[str]:
+    raw = os.getenv("AIRBNB_PHOTO_SOURCE_HOSTS", "www.airbnb.com").strip()
+    out: list[str] = []
+    for item in raw.split(","):
+        host = item.strip().lower()
+        if not host:
+            continue
+        if host not in _ALLOWED_SOURCE_HOSTS:
+            raise RuntimeError(f"Unsupported AIRBNB_PHOTO_SOURCE_HOSTS host: {host}")
+        if host not in out:
+            out.append(host)
+    if not out:
+        raise RuntimeError("AIRBNB_PHOTO_SOURCE_HOSTS resolved to an empty host list")
     return out
 
 
@@ -141,21 +159,25 @@ def _fetch_candidate_urls_once(source: str) -> tuple[list[str], list[dict]]:
 
 
 def _fetch_candidate_urls(source: str, min_expected: int) -> tuple[list[str], list[dict]]:
-    waits = [0, 20, 45, 90, 150]
+    waits = [0, 20, 45]
+    hosts = _source_hosts()
     last_urls: list[str] = []
     last_info: list[dict] = []
     for attempt, wait in enumerate(waits, start=1):
         if wait:
-            log.warning("AIRBNB_SOURCE_BACKOFF seconds=%s source=%s", wait, source)
+            log.warning("AIRBNB_SOURCE_BACKOFF seconds=%s hosts=%s", wait, hosts)
             time.sleep(wait)
-        try:
-            urls, info = _fetch_candidate_urls_once(source)
-            last_urls, last_info = urls, info
-            if len(urls) >= min_expected:
-                return urls, info
-            log.warning("AIRBNB_SOURCE_TOO_SMALL attempt=%s count=%s expected_at_least=%s info=%s", attempt, len(urls), min_expected, info)
-        except Exception as exc:
-            log.warning("AIRBNB_SOURCE_FETCH_FAILED attempt=%s error=%r", attempt, exc)
+        for host in hosts:
+            effective_source = rewrite_url_host(source, host)
+            try:
+                urls, info = _fetch_candidate_urls_once(effective_source)
+                last_urls, last_info = urls, info
+                if len(urls) >= min_expected:
+                    log.info("AIRBNB_SOURCE_HOST_OK host=%s count=%s source=%s", host, len(urls), effective_source)
+                    return urls, info
+                log.warning("AIRBNB_SOURCE_TOO_SMALL attempt=%s host=%s count=%s expected_at_least=%s info=%s", attempt, host, len(urls), min_expected, info)
+            except Exception as exc:
+                log.warning("AIRBNB_SOURCE_FETCH_FAILED attempt=%s host=%s error=%r", attempt, host, exc)
     return last_urls, last_info
 
 
