@@ -102,7 +102,9 @@ def apply(mt):
         import cozy_catalog
         import samui_news_automation
         import samui_news_layout_patch
+        import samui_news_source_patch
         samui_news_layout_patch.apply(samui_news_automation, mt, cozy_catalog)
+        samui_news_source_patch.apply(samui_news_automation, mt, cozy_catalog)
 
         import cozy_stories_automation
         import cozy_stories_v2_patch
