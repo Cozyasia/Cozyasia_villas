@@ -28,6 +28,10 @@ def diagnostic_mode() -> bool:
     return os.getenv("PREPARED_PACKAGE_DIAGNOSTIC", "0").strip().lower() in _TRUTHY
 
 
+def retry_only_lot() -> str:
+    return os.getenv("PREPARED_RETRY_ONLY_LOT", "").strip()
+
+
 def _preloaded_additional_ids(record) -> list[str]:
     """Return stable placeholders for overflow photos already present in Drive."""
     values = []
@@ -45,6 +49,17 @@ def _preloaded_additional_ids(record) -> list[str]:
                 values = candidate
                 break
     return [f"preloaded-{idx:02d}" for idx, _ in enumerate(values or [], start=1)]
+
+
+def _filter_records_for_retry(records, target_lot: str) -> list:
+    """Select exactly one prepared record for a retry-safe publication."""
+    target = str(target_lot).strip()
+    selected = [rec for rec in records if str(rec.get("lot", "")).strip() == target]
+    if len(selected) != 1:
+        raise RuntimeError(
+            f"Prepared retry expected exactly one record for lot {target}, found {len(selected)}"
+        )
+    return selected
 
 
 def _materialize_package() -> Path:
@@ -108,6 +123,14 @@ def run_service_mode() -> None:
         return
     sys.path.insert(0, str(root))
     runtime = importlib.import_module("prepared_three_runtime")
+
+    target_lot = retry_only_lot()
+    if target_lot:
+        runtime.RECORDS = _filter_records_for_retry(runtime.RECORDS, target_lot)
+        logging.getLogger("prepared-publication-bootstrap").info(
+            "Retry isolated to prepared lot %s", target_lot
+        )
+
     if preloaded_additional_mode():
         logging.getLogger("prepared-publication-bootstrap").info(
             "Using preloaded additional-photo mode; Drive writes are disabled"
