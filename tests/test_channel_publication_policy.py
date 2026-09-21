@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import unittest
 from types import SimpleNamespace
 
@@ -104,6 +105,75 @@ class PolicyTests(unittest.TestCase):
             routing_audit._rewrite_rent_start(url, "1204"),
             "https://t.me/cozy_asia_bot?foo=1&start=rent_1204&bar=2",
         )
+
+    def test_target_filter_is_scoped_by_channel(self):
+        old = os.environ.get("CHANNEL_BOT_ROUTING_TARGETS")
+        os.environ["CHANNEL_BOT_ROUTING_TARGETS"] = (
+            '{"samuirental":[5134,5124],"arenda_vill_samui":[1133]}'
+        )
+        try:
+            self.assertEqual(routing_audit._target_ids_for("samuirental"), {5134, 5124})
+            self.assertEqual(routing_audit._target_ids_for("arenda_vill_samui"), {1133})
+        finally:
+            if old is None:
+                os.environ.pop("CHANNEL_BOT_ROUTING_TARGETS", None)
+            else:
+                os.environ["CHANNEL_BOT_ROUTING_TARGETS"] = old
+
+    def test_group_candidates_keep_only_same_album_caption_siblings(self):
+        messages = [
+            SimpleNamespace(id=10, grouped_id=77, message="", entities=[]),
+            SimpleNamespace(id=11, grouped_id=77, message="caption", entities=[SimpleNamespace(url="x")]),
+            SimpleNamespace(id=12, grouped_id=88, message="other", entities=[SimpleNamespace(url="x")]),
+            SimpleNamespace(id=13, grouped_id=77, message="no links", entities=[]),
+        ]
+        candidates = routing_audit._group_caption_candidates(messages, grouped_id=77, original_id=10)
+        self.assertEqual([m.id for m in candidates], [11])
+
+
+class RepairRetryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_flood_wait_retries_same_edit_after_waiting(self):
+        class FakeFloodWaitError(Exception):
+            def __init__(self, seconds):
+                self.seconds = seconds
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            async def edit_message(self, *args, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    raise FakeFloodWaitError(7)
+                return SimpleNamespace(id=args[1])
+
+        waits = []
+
+        async def fake_sleep(seconds):
+            waits.append(seconds)
+
+        old_error = getattr(routing_audit, "FloodWaitError", None)
+        old_sleep = getattr(routing_audit, "_sleep", None)
+        routing_audit.FloodWaitError = FakeFloodWaitError
+        routing_audit._sleep = fake_sleep
+        client = FakeClient()
+        try:
+            out = await routing_audit._edit_with_retry(
+                client, "samuirental", 5134, "text", [], max_attempts=3
+            )
+        finally:
+            if old_error is None:
+                delattr(routing_audit, "FloodWaitError")
+            else:
+                routing_audit.FloodWaitError = old_error
+            if old_sleep is None:
+                delattr(routing_audit, "_sleep")
+            else:
+                routing_audit._sleep = old_sleep
+
+        self.assertEqual(client.calls, 2)
+        self.assertEqual(waits, [10])
+        self.assertEqual(out.id, 5134)
 
 
 if __name__ == "__main__":
