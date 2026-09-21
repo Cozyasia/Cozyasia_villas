@@ -4,6 +4,13 @@
 Telegram Bot API doesn't allow our bot's Premium custom emoji entities in channel
 posts, so this layout deliberately avoids <tg-emoji> and produces identical text
 for all Telegram clients/accounts.
+
+Permanent visual standard:
+- description body is a Telegram blockquote;
+- per-lot application CTA comes before the operator;
+- two blank lines separate the application CTA from the operator;
+- the final search CTA follows the operator;
+- hashtags stay at the bottom after a blank line.
 """
 from __future__ import annotations
 
@@ -76,6 +83,8 @@ def apply(mod, throttle):
                 "📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>",
                 f'👉 <a href="{html.escape(rent, quote=True)}"><b>ЖМИ ЗДЕСЬ</b></a> 👈',
                 "",
+                "",
+                "Оператор: @cozy_asia",
                 f'🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href="{html.escape(search, quote=True)}"><b>НАПИСАТЬ БОТУ</b></a> 🤖',
             ]
             if tags_text:
