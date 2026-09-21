@@ -44,6 +44,15 @@ elif __name__ == "__main__" and _publication_mode():
 else:
     from main_legacy import *  # noqa: F401,F403
     import main_legacy as _entry
+    import channel_bot_routing as _permanent_channel_routing
+
+    # Permanent rule: the bot used by generated CTAs is selected from the
+    # destination channel, never from whichever Telegram bot happens to be
+    # running the standardizer.
+    _permanent_channel_routing.apply_to_standardizer(
+        _entry.post_standardizer,
+        _entry.cozy_catalog,
+    )
 
     def _disable_accidental_startup_publishers() -> None:
         try:
