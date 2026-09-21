@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from collections import Counter
 
 log = logging.getLogger("channel-bot-routing")
@@ -62,6 +63,91 @@ def _is_bot_url(url: str) -> bool:
     return bool(bot and bot.lower().endswith("bot"))
 
 
+def _normalize_header_line(line: str) -> str:
+    """Normalize only a visible Telegram header line, never the listing body."""
+    value = str(line or "").replace("\ufe0f", "").replace("\u20e3", "")
+    value = value.replace("➖", "-").replace("–", "-").replace("—", "-").replace("−", "-")
+    value = unicodedata.normalize("NFKC", value)
+    chars = []
+    for ch in value:
+        try:
+            chars.append(str(int(unicodedata.digit(ch))))
+        except Exception:
+            chars.append(ch)
+    return "".join(chars)
+
+
+def _visible_lot_from_text(text: str) -> str:
+    """Read a lot only from the first visible line.
+
+    This deliberately refuses to search the body, where years, prices, areas and
+    utility rates previously produced false `rent_<lot>` mismatch reports.
+    Legacy prefixed lots such as ``01-1060`` are preserved.
+    """
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    if not lines:
+        return ""
+    raw = lines[0]
+    line = _normalize_header_line(raw)
+
+    marker = re.search(r"(?i)\b(?:лот|lot)\b\s*(?:№|#|no\.?)?\s*[:\-]?\s*", line)
+    search_from = marker.end() if marker else 0
+
+    # Without an explicit LOT marker, accept a number only from our stylized
+    # Cozy Asia header. This prevents a title like "Villa 2026" becoming a lot.
+    if marker is None and not any(token in raw for token in ("🔤", "\u20e3", "➖")):
+        return ""
+
+    tail = line[search_from:]
+    match = re.search(
+        r"(?<!\d)(\d{1,2}-\d{1,7}(?:-\d{1,2})?|\d{3,7}(?:-\d{1,2})?)(?!\d)",
+        tail,
+    )
+    if not match:
+        return ""
+    candidate = match.group(1)
+
+    # A Premium header can expose a literal dash while the suffix itself is a
+    # custom emoji placeholder. Do not guess in that ambiguous case.
+    remainder = tail[match.end():]
+    if remainder.startswith("-") and not re.match(r"-\d", remainder):
+        return ""
+    return candidate
+
+
+def _trusted_lot_from_message(msg) -> str:
+    """Return a lot only when the message header itself carries one."""
+    text = getattr(msg, "message", None) or ""
+    visible = _visible_lot_from_text(text)
+    if visible:
+        return visible
+
+    # For Premium headers with a hidden custom-emoji suffix, the text can be
+    # ambiguous (e.g. visible ``1168-``). publication_safety decodes known digit
+    # document IDs, but we invoke it only when the FIRST line is visibly a Cozy
+    # Asia lot header so body numbers can never leak into the result.
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    first = lines[0]
+    normalized = _normalize_header_line(first)
+    header_like = bool(
+        re.search(r"(?i)\b(?:лот|lot)\b", normalized)
+        or any(token in first for token in ("🔤", "\u20e3", "➖"))
+    )
+    if not header_like:
+        return ""
+    try:
+        import publication_safety
+
+        decoded = str(publication_safety.lot_from_message(msg) or "").strip()
+        if re.fullmatch(r"(?:\d{1,2}-)?\d{1,7}(?:-\d{1,2})?", decoded):
+            return decoded
+    except Exception:
+        pass
+    return ""
+
+
 def _sample(msg) -> dict:
     text = getattr(msg, "message", None) or ""
     entities = list(getattr(msg, "entities", None) or [])
@@ -103,12 +189,7 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
         if len(latest_samples) < 12:
             latest_samples.append(_sample(msg))
 
-        try:
-            lot = str(catalog.extract_lot_id(text) or "").strip()
-        except Exception:
-            lot = ""
-        if lot == "0":
-            lot = ""
+        lot = _trusted_lot_from_message(msg)
 
         changed = False
         new_entities = []
