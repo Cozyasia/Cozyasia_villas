@@ -30,6 +30,16 @@ def _drive_link_edit_mode() -> bool:
 
 if __name__ == "__main__" and _villa_santi_mode():
     import publish_villa_santi_20260921 as _villa_santi
+
+    # The 29 additional photos are preloaded through the connected Drive user.
+    # Render's service account can read the source ZIP but cannot create files
+    # inside this user-owned folder, so publication must not attempt re-upload.
+    _villa_santi._ensure_additional_photos = (
+        lambda root, manifest: [
+            f"preloaded-{idx:02d}"
+            for idx, _ in enumerate(manifest.get("additional_photos") or [], start=1)
+        ]
+    )
     _villa_santi.run_service_mode()
 elif __name__ == "__main__" and _channel_bot_routing_mode():
     import channel_bot_routing_audit as _channel_bot_routing
