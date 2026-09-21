@@ -8,6 +8,10 @@ from __future__ import annotations
 import os
 
 
+def _channel_bot_routing_mode() -> bool:
+    return os.getenv("CHANNEL_BOT_ROUTING_MODE", "").strip().lower() in {"audit", "migrate"}
+
+
 def _publication_mode() -> bool:
     return os.getenv("PUBLISH_PREPARED_THREE_VILLAS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -20,7 +24,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _drive_link_edit_mode():
+if __name__ == "__main__" and _channel_bot_routing_mode():
+    import channel_bot_routing_audit as _channel_bot_routing
+    _channel_bot_routing.run_service_mode()
+elif __name__ == "__main__" and _drive_link_edit_mode():
     import edit_small_lots_drive_links_1201_1207 as _drive_link_edit
     _drive_link_edit.run_service_mode()
 elif __name__ == "__main__" and _photo_backfill_mode():
