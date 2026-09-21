@@ -18,6 +18,21 @@ class PreparedPublicationBootstrapTests(unittest.TestCase):
             helper(record),
         )
 
+    def test_retry_record_filter_selects_only_requested_lot(self):
+        helper = getattr(bootstrap, "_filter_records_for_retry", None)
+        self.assertIsNotNone(
+            helper,
+            "bootstrap must be able to isolate the one unpublished lot on retry",
+        )
+        records = [
+            {"lot": "1214", "source_id": "first"},
+            {"lot": "1215", "source_id": "second"},
+        ]
+        self.assertEqual(
+            [{"lot": "1215", "source_id": "second"}],
+            helper(records, "1215"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
