@@ -12,8 +12,41 @@ import zipfile
 from pathlib import Path
 
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
 def enabled() -> bool:
-    return os.getenv("PUBLISH_PREPARED_THREE_VILLAS", "0").strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv("PUBLISH_PREPARED_THREE_VILLAS", "0").strip().lower() in _TRUTHY
+
+
+def preloaded_additional_mode() -> bool:
+    """Use already-preloaded overflow photos instead of writing to Drive."""
+    return os.getenv("PREPARED_SKIP_ADDITIONAL_UPLOAD", "0").strip().lower() in _TRUTHY
+
+
+def _preloaded_additional_ids(record) -> list[str]:
+    """Return stable placeholders for overflow photos already present in Drive.
+
+    The prepared runtime only needs a successful overflow-photo result before it
+    proceeds to Telegram.  Render's service account can read the prepared ZIP
+    but cannot create files in the user-owned Drive folders, so retry mode must
+    never attempt another Drive upload.
+    """
+    values = []
+    keys = ("additional_photos", "additional_files", "additional", "extra_photos")
+    if isinstance(record, dict):
+        for key in keys:
+            candidate = record.get(key)
+            if candidate:
+                values = candidate
+                break
+    else:
+        for key in keys:
+            candidate = getattr(record, key, None)
+            if candidate:
+                values = candidate
+                break
+    return [f"preloaded-{idx:02d}" for idx, _ in enumerate(values or [], start=1)]
 
 
 def _materialize_package() -> Path:
@@ -61,4 +94,9 @@ def run_service_mode() -> None:
     root = _materialize_package()
     sys.path.insert(0, str(root))
     runtime = importlib.import_module("prepared_three_runtime")
+    if preloaded_additional_mode():
+        logging.getLogger("prepared-publication-bootstrap").info(
+            "Using preloaded additional-photo mode; Drive writes are disabled"
+        )
+        runtime._ensure_additional = _preloaded_additional_ids
     runtime.run_service_mode()
