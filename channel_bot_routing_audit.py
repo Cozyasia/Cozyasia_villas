@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """Audit/migrate Telegram bot routing in Cozy Asia property channels.
 
-This maintenance tool is intentionally gated from ``main.py``.  It can scan all
-messages in the two property channels and, in migrate mode, replace only
-MessageEntityTextUrl targets that point to a bot for the wrong channel.  The
-message text and every other Telegram entity (blockquote, custom emoji, bold,
-spacing, etc.) are preserved byte-for-byte.
+This maintenance tool is intentionally gated from ``main.py``. It scans the
+complete history of both property channels. In migrate mode it changes only
+MessageEntityTextUrl targets: the visible text, blockquotes, spacing, bold,
+Premium custom emoji and every other entity are preserved.
 """
 from __future__ import annotations
 
@@ -38,10 +37,20 @@ def _bot_from_url(url: str) -> str:
     return m.group(1) if m else ""
 
 
-def _rewrite_target(url: str, expected_bot: str) -> str:
+def _rewrite_bot(url: str, expected_bot: str) -> str:
     return re.sub(
         r"(https?://(?:www\.)?t\.me/)([A-Za-z0-9_]+)",
         lambda m: m.group(1) + expected_bot,
+        url,
+        count=1,
+        flags=re.I,
+    )
+
+
+def _rewrite_rent_start(url: str, lot: str) -> str:
+    return re.sub(
+        r"([?&]start=)rent_[^&#]+",
+        lambda m: m.group(1) + "rent_" + lot,
         url,
         count=1,
         flags=re.I,
@@ -72,14 +81,16 @@ def _sample(msg) -> dict:
     }
 
 
-async def _audit_channel(client, channel: str, expected_bot: str, do_migrate: bool) -> dict:
+async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_migrate: bool) -> dict:
     total = 0
     text_messages = 0
     bot_counter = Counter()
     starts = Counter()
     wrong = []
+    deep_link_mismatches = []
     plain_url_wrong = []
     migrated = []
+    failed = []
     latest_samples = []
 
     async for msg in client.iter_messages(channel, limit=None):
@@ -92,6 +103,13 @@ async def _audit_channel(client, channel: str, expected_bot: str, do_migrate: bo
         if len(latest_samples) < 12:
             latest_samples.append(_sample(msg))
 
+        try:
+            lot = str(catalog.extract_lot_id(text) or "").strip()
+        except Exception:
+            lot = ""
+        if lot == "0":
+            lot = ""
+
         changed = False
         new_entities = []
         for ent in entities:
@@ -101,8 +119,10 @@ async def _audit_channel(client, channel: str, expected_bot: str, do_migrate: bo
                 bot = _bot_from_url(url)
                 bot_counter[bot] += 1
                 sm = re.search(r"[?&]start=([^&#]+)", url)
-                if sm:
-                    starts[sm.group(1)] += 1
+                start_value = sm.group(1) if sm else ""
+                if start_value:
+                    starts[start_value] += 1
+
                 if bot.lower() != expected_bot.lower():
                     wrong.append({
                         "id": int(msg.id),
@@ -112,13 +132,27 @@ async def _audit_channel(client, channel: str, expected_bot: str, do_migrate: bo
                         "text_head": text[:160].replace("\n", " | "),
                     })
                     if do_migrate and type(ent).__name__ == "MessageEntityTextUrl":
-                        cloned.url = _rewrite_target(url, expected_bot)
+                        cloned.url = _rewrite_bot(url, expected_bot)
                         changed = True
+
+                if lot and start_value.lower().startswith("rent_"):
+                    expected_start = "rent_" + lot
+                    if start_value.lower() != expected_start.lower():
+                        deep_link_mismatches.append({
+                            "id": int(msg.id),
+                            "lot": lot,
+                            "start": start_value,
+                            "expected_start": expected_start,
+                            "url": url,
+                        })
+                        if do_migrate and type(ent).__name__ == "MessageEntityTextUrl":
+                            cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), lot)
+                            changed = True
             new_entities.append(cloned)
 
-        # Detect plain URL text so the audit is complete.  We deliberately do
-        # not auto-rewrite it because that would require offset surgery and can
-        # damage hand-edited formatting.
+        # Detect plain URL text for completeness. We do not auto-rewrite it:
+        # changing visible text would require offset surgery and could damage
+        # user-edited formatting.
         for url in re.findall(r"https?://(?:www\.)?t\.me/[A-Za-z0-9_]+(?:\?[^\s<>()]+)?", text):
             if not _is_bot_url(url):
                 continue
@@ -132,9 +166,17 @@ async def _audit_channel(client, channel: str, expected_bot: str, do_migrate: bo
                 })
 
         if changed:
-            await client.edit_message(channel, msg.id, text, formatting_entities=new_entities)
-            migrated.append(int(msg.id))
-            await asyncio.sleep(0.35)
+            try:
+                await client.edit_message(channel, msg.id, text, formatting_entities=new_entities)
+                migrated.append(int(msg.id))
+                log.info("routing migration edited %s/%s", channel, msg.id)
+                await asyncio.sleep(0.4)
+            except Exception as exc:
+                failed.append({
+                    "id": int(msg.id),
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
+                log.warning("routing migration could not edit %s/%s: %s", channel, msg.id, exc)
 
     return {
         "expected_bot": expected_bot,
@@ -144,10 +186,14 @@ async def _audit_channel(client, channel: str, expected_bot: str, do_migrate: bo
         "start_params_top": starts.most_common(30),
         "wrong_entity_count": len(wrong),
         "wrong_entity_examples": wrong[:200],
+        "deep_link_mismatch_count": len(deep_link_mismatches),
+        "deep_link_mismatch_examples": deep_link_mismatches[:200],
         "plain_url_wrong_count": len(plain_url_wrong),
         "plain_url_wrong_examples": plain_url_wrong[:100],
         "migrated_count": len(migrated),
         "migrated_message_ids": migrated[:500],
+        "failed_count": len(failed),
+        "failed": failed[:200],
         "latest_samples": latest_samples,
     }
 
@@ -163,7 +209,9 @@ async def run() -> dict:
     result = {"mode": mode(), "channels": {}}
     try:
         for channel, expected in CHANNELS.items():
-            result["channels"][channel] = await _audit_channel(client, channel, expected, do_migrate)
+            result["channels"][channel] = await _audit_channel(
+                client, catalog, channel, expected, do_migrate
+            )
     finally:
         await client.disconnect()
     return result
