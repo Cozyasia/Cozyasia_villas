@@ -5,6 +5,10 @@ This maintenance tool is intentionally gated from ``main.py``. It scans the
 complete history of both property channels. In migrate mode it changes only
 MessageEntityTextUrl targets: the visible text, blockquotes, spacing, bold,
 Premium custom emoji and every other entity are preserved.
+
+Migration can be restricted to confirmed message IDs with
+``CHANNEL_BOT_ROUTING_TARGETS``. Telegram FloodWait is honored and retried on
+the same message before moving on.
 """
 from __future__ import annotations
 
@@ -17,7 +21,10 @@ import re
 import unicodedata
 from collections import Counter
 
+from telethon.errors import FloodWaitError, MessageIdInvalidError
+
 log = logging.getLogger("channel-bot-routing")
+_sleep = asyncio.sleep
 
 CHANNELS = {
     "samuirental": "cozy_asia_bot",
@@ -31,6 +38,73 @@ def enabled() -> bool:
 
 def mode() -> str:
     return os.getenv("CHANNEL_BOT_ROUTING_MODE", "audit").strip().lower()
+
+
+def _target_ids_for(channel: str):
+    """Return confirmed migrate targets for one channel, or None for all.
+
+    Malformed/non-object configuration is fail-closed: migration never silently
+    broadens from a targeted repair to the whole history.
+    """
+    raw = os.getenv("CHANNEL_BOT_ROUTING_TARGETS", "").strip()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception as exc:
+        raise RuntimeError("CHANNEL_BOT_ROUTING_TARGETS must be valid JSON") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError("CHANNEL_BOT_ROUTING_TARGETS must be a JSON object")
+    values = data.get(channel, [])
+    if not isinstance(values, list):
+        raise RuntimeError(f"CHANNEL_BOT_ROUTING_TARGETS[{channel!r}] must be a list")
+    try:
+        return {int(x) for x in values}
+    except Exception as exc:
+        raise RuntimeError(f"Invalid message id in CHANNEL_BOT_ROUTING_TARGETS[{channel!r}]") from exc
+
+
+def _group_caption_candidates(messages, grouped_id, original_id):
+    """Find same-album caption siblings that contain URL entities."""
+    result = []
+    for msg in messages or []:
+        if int(getattr(msg, "id", 0) or 0) == int(original_id):
+            continue
+        if getattr(msg, "grouped_id", None) != grouped_id:
+            continue
+        if not (getattr(msg, "message", None) or ""):
+            continue
+        entities = list(getattr(msg, "entities", None) or [])
+        if not any(str(getattr(ent, "url", "") or "") for ent in entities):
+            continue
+        result.append(msg)
+    return result
+
+
+async def _edit_with_retry(client, channel, message_id, text, entities, max_attempts: int = 3):
+    """Edit one exact message, respecting Telegram FloodWait and retrying it."""
+    for attempt in range(max_attempts):
+        try:
+            return await client.edit_message(
+                channel,
+                int(message_id),
+                text,
+                formatting_entities=list(entities or []),
+            )
+        except FloodWaitError as exc:
+            if attempt + 1 >= max_attempts:
+                raise
+            wait_seconds = int(getattr(exc, "seconds", 0) or 0) + 3
+            log.warning(
+                "Telegram FloodWait on %s/%s: waiting %ss before retry %s/%s",
+                channel,
+                message_id,
+                wait_seconds,
+                attempt + 2,
+                max_attempts,
+            )
+            await _sleep(wait_seconds)
+    raise RuntimeError("unreachable edit retry state")
 
 
 def _bot_from_url(url: str) -> str:
@@ -93,8 +167,6 @@ def _visible_lot_from_text(text: str) -> str:
     marker = re.search(r"(?i)\b(?:лот|lot)\b\s*(?:№|#|no\.?)?\s*[:\-]?\s*", line)
     search_from = marker.end() if marker else 0
 
-    # Without an explicit LOT marker, accept a number only from our stylized
-    # Cozy Asia header. This prevents a title like "Villa 2026" becoming a lot.
     if marker is None and not any(token in raw for token in ("🔤", "\u20e3", "➖")):
         return ""
 
@@ -106,9 +178,6 @@ def _visible_lot_from_text(text: str) -> str:
     if not match:
         return ""
     candidate = match.group(1)
-
-    # A Premium header can expose a literal dash while the suffix itself is a
-    # custom emoji placeholder. Do not guess in that ambiguous case.
     remainder = tail[match.end():]
     if remainder.startswith("-") and not re.match(r"-\d", remainder):
         return ""
@@ -122,10 +191,6 @@ def _trusted_lot_from_message(msg) -> str:
     if visible:
         return visible
 
-    # For Premium headers with a hidden custom-emoji suffix, the text can be
-    # ambiguous (e.g. visible ``1168-``). publication_safety decodes known digit
-    # document IDs, but we invoke it only when the FIRST line is visibly a Cozy
-    # Asia lot header so body numbers can never leak into the result.
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return ""
@@ -153,6 +218,11 @@ def _sample(msg) -> dict:
     entities = list(getattr(msg, "entities", None) or [])
     return {
         "id": int(getattr(msg, "id", 0) or 0),
+        "grouped_id": getattr(msg, "grouped_id", None),
+        "sender_id": getattr(msg, "sender_id", None),
+        "out": getattr(msg, "out", None),
+        "post_author": getattr(msg, "post_author", None),
+        "media_type": type(getattr(msg, "media", None)).__name__ if getattr(msg, "media", None) else None,
         "text": text,
         "entities": [
             {
@@ -167,6 +237,72 @@ def _sample(msg) -> dict:
     }
 
 
+def _entity_urls(entities):
+    return [str(getattr(e, "url", "") or "") for e in (entities or []) if str(getattr(e, "url", "") or "")]
+
+
+def _rewritten_entities_for_message(msg, expected_bot: str):
+    """Recompute safe URL-only edits for one message."""
+    text = getattr(msg, "message", None) or ""
+    lot = _trusted_lot_from_message(msg)
+    changed = False
+    new_entities = []
+    for ent in list(getattr(msg, "entities", None) or []):
+        cloned = copy.copy(ent)
+        url = str(getattr(ent, "url", "") or "")
+        if url and _is_bot_url(url) and type(ent).__name__ == "MessageEntityTextUrl":
+            bot = _bot_from_url(url)
+            if bot.lower() != expected_bot.lower():
+                cloned.url = _rewrite_bot(url, expected_bot)
+                changed = True
+            sm = re.search(r"[?&]start=([^&#]+)", url)
+            start_value = sm.group(1) if sm else ""
+            if lot and start_value.lower().startswith("rent_") and start_value.lower() != ("rent_" + lot).lower():
+                cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), lot)
+                changed = True
+        new_entities.append(cloned)
+    return text, lot, new_entities, changed
+
+
+def _verify_routes(msg, expected_bot: str):
+    lot = _trusted_lot_from_message(msg)
+    bad = []
+    for url in _entity_urls(getattr(msg, "entities", None) or []):
+        if not _is_bot_url(url):
+            continue
+        bot = _bot_from_url(url)
+        if bot.lower() != expected_bot.lower():
+            bad.append({"kind": "bot", "url": url, "expected_bot": expected_bot})
+        sm = re.search(r"[?&]start=([^&#]+)", url)
+        start = sm.group(1) if sm else ""
+        if lot and start.lower().startswith("rent_") and start.lower() != ("rent_" + lot).lower():
+            bad.append({"kind": "rent", "url": url, "expected_start": "rent_" + lot})
+    return bad
+
+
+async def _try_album_caption_fallback(client, channel: str, msg, expected_bot: str):
+    """On MessageIdInvalid, inspect only same grouped media and edit a real caption sibling."""
+    grouped_id = getattr(msg, "grouped_id", None)
+    if not grouped_id:
+        return None
+    ids = list(range(max(1, int(msg.id) - 12), int(msg.id) + 13))
+    nearby = await client.get_messages(channel, ids=ids)
+    candidates = _group_caption_candidates(nearby, grouped_id, int(msg.id))
+    for candidate in candidates:
+        text, _lot, new_entities, changed = _rewritten_entities_for_message(candidate, expected_bot)
+        if not changed:
+            continue
+        try:
+            await _edit_with_retry(client, channel, int(candidate.id), text, new_entities)
+            verify = await client.get_messages(channel, ids=int(candidate.id))
+            if _verify_routes(verify, expected_bot):
+                continue
+            return int(candidate.id)
+        except MessageIdInvalidError:
+            continue
+    return None
+
+
 async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_migrate: bool) -> dict:
     total = 0
     text_messages = 0
@@ -177,7 +313,9 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
     plain_url_wrong = []
     migrated = []
     failed = []
+    uneditable = []
     latest_samples = []
+    targets = _target_ids_for(channel)
 
     async for msg in client.iter_messages(channel, limit=None):
         total += 1
@@ -190,6 +328,7 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
             latest_samples.append(_sample(msg))
 
         lot = _trusted_lot_from_message(msg)
+        can_migrate = do_migrate and (targets is None or int(msg.id) in targets)
 
         changed = False
         new_entities = []
@@ -212,7 +351,7 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
                         "type": type(ent).__name__,
                         "text_head": text[:160].replace("\n", " | "),
                     })
-                    if do_migrate and type(ent).__name__ == "MessageEntityTextUrl":
+                    if can_migrate and type(ent).__name__ == "MessageEntityTextUrl":
                         cloned.url = _rewrite_bot(url, expected_bot)
                         changed = True
 
@@ -226,14 +365,11 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
                             "expected_start": expected_start,
                             "url": url,
                         })
-                        if do_migrate and type(ent).__name__ == "MessageEntityTextUrl":
+                        if can_migrate and type(ent).__name__ == "MessageEntityTextUrl":
                             cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), lot)
                             changed = True
             new_entities.append(cloned)
 
-        # Detect plain URL text for completeness. We do not auto-rewrite it:
-        # changing visible text would require offset surgery and could damage
-        # user-edited formatting.
         for url in re.findall(r"https?://(?:www\.)?t\.me/[A-Za-z0-9_]+(?:\?[^\s<>()]+)?", text):
             if not _is_bot_url(url):
                 continue
@@ -248,19 +384,41 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
 
         if changed:
             try:
-                await client.edit_message(channel, msg.id, text, formatting_entities=new_entities)
+                await _edit_with_retry(client, channel, int(msg.id), text, new_entities)
+                verify = await client.get_messages(channel, ids=int(msg.id))
+                bad = _verify_routes(verify, expected_bot)
+                if bad:
+                    raise RuntimeError(f"Post-edit verification failed: {bad}")
                 migrated.append(int(msg.id))
-                log.info("routing migration edited %s/%s", channel, msg.id)
-                await asyncio.sleep(0.4)
+                log.info("routing migration edited and verified %s/%s", channel, msg.id)
+                await _sleep(1.25)
+            except MessageIdInvalidError as exc:
+                diagnostic = _sample(msg)
+                diagnostic["error"] = f"{type(exc).__name__}: {exc}"
+                log.warning("direct edit invalid for %s/%s; inspecting album metadata=%s", channel, msg.id, diagnostic)
+                try:
+                    sibling_id = await _try_album_caption_fallback(client, channel, msg, expected_bot)
+                except Exception as fallback_exc:
+                    diagnostic["fallback_error"] = f"{type(fallback_exc).__name__}: {fallback_exc}"
+                    sibling_id = None
+                if sibling_id is not None:
+                    migrated.append(int(sibling_id))
+                    diagnostic["resolved_via_sibling_id"] = int(sibling_id)
+                    log.info("routing migration resolved %s/%s via sibling %s", channel, msg.id, sibling_id)
+                    await _sleep(1.25)
+                else:
+                    uneditable.append(diagnostic)
             except Exception as exc:
                 failed.append({
                     "id": int(msg.id),
                     "error": f"{type(exc).__name__}: {exc}",
+                    "metadata": _sample(msg),
                 })
                 log.warning("routing migration could not edit %s/%s: %s", channel, msg.id, exc)
 
     return {
         "expected_bot": expected_bot,
+        "targets": sorted(targets) if targets is not None else None,
         "total_messages": total,
         "text_messages": text_messages,
         "bot_counter": dict(bot_counter),
@@ -275,6 +433,8 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
         "migrated_message_ids": migrated[:500],
         "failed_count": len(failed),
         "failed": failed[:200],
+        "uneditable_count": len(uneditable),
+        "uneditable": uneditable[:50],
         "latest_samples": latest_samples,
     }
 
