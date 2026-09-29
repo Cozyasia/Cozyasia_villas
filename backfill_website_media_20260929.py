@@ -15,12 +15,7 @@ async def _amain():
   print(f'WM_ITEM_START={lot}:{mid}',flush=True)
   msg=await asyncio.wait_for(c.get_messages("samuirental",ids=mid),timeout=20)
   if not msg: out.append({"lot":lot,"mid":mid,"wid":wid,"error":"message_not_found"}); continue
-  gid=getattr(msg,"grouped_id",None)
-  if gid:
-   ms=await asyncio.wait_for(c.get_messages("samuirental",ids=list(range(max(1,mid-12),mid+13))),timeout=20)
-   imgs=[m.id for m in ms if m and getattr(m,"grouped_id",None)==gid and (getattr(m,"photo",None) or str(getattr(getattr(m,"document",None),"mime_type","")).startswith("image/"))]
-   imgs.sort()
-  else: imgs=[mid] if (getattr(msg,"photo",None) or str(getattr(getattr(msg,"document",None),"mime_type","")).startswith("image/")) else []
+  imgs=[mid] if (getattr(msg,"photo",None) or str(getattr(getattr(msg,"document",None),"mime_type","")).startswith("image/")) else []
   out.append({"lot":lot,"mid":mid,"wid":wid,"image_message_ids":imgs})
  print("WM_SCAN="+json.dumps(out,separators=(",",":")),flush=True); await c.disconnect()
 def main(): asyncio.run(_amain())
