@@ -89,32 +89,4 @@ else:
     if __name__ == "__main__":
         _disable_accidental_startup_publishers()
         _run_drive_permission_probe_if_requested()
-        # Temporary read-only recovery: run alongside the normal bot, emit compact evidence.
-        def _start_lot_recovery_once() -> None:
-            import threading
-            def _scan() -> None:
-                try:
-                    import asyncio
-                    import json
-                    import os
-                    os.environ["LOT_RECOVERY_TARGETS"] = "1169,965,966,994,01-011,996,997,1170,1147,1072,1109,1157,1039,1004,1018,1019,1111,1102,1041,1042,905,929,984,729,985,01-003,1020,1063,1064,1068,1069,1075,1080,1089,1092,1095,1115,1114,1101,1100,1110,1113,1117,1118,1119,1122,1123,1124,1192,972,977,991,911,908,930,957,941,1052,1051,936,937,938,1049,1053,950"
-                    import recover_lots_20260928 as _recovery
-                    result = asyncio.run(_recovery.run())
-                    for lot, items in sorted(result["found"].items()):
-                        for item in items:
-                            print("LOT_RECOVERY_HIT=" + json.dumps({
-                                "lot": lot, "channel": item["channel"],
-                                "message_id": item["message_id"], "url": item["url"],
-                                "first_line": item["text"].splitlines()[0] if item["text"] else "",
-                            }, ensure_ascii=False), flush=True)
-                    print("LOT_RECOVERY_SUMMARY=" + json.dumps({
-                        "channels": result["channels"], "missing": result["missing"],
-                        "found_lots": len(result["found"]),
-                    }, ensure_ascii=False), flush=True)
-                except Exception:
-                    import logging
-                    logging.getLogger("lot-recovery").exception("LOT_RECOVERY_FAILED")
-            threading.Thread(target=_scan, name="lot-recovery-20260929", daemon=True).start()
-
-        _start_lot_recovery_once()
         _entry.main()
