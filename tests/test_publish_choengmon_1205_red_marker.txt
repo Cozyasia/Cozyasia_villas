@@ -1,0 +1,1 @@
+RED: publish_choengmon_1205 is expected to fail contract import until implementation is added.
