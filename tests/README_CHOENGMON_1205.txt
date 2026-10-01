@@ -1,1 +1,0 @@
-Do not deploy until publication implementation is complete and verified.

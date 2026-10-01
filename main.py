@@ -8,6 +8,10 @@ from __future__ import annotations
 import os
 
 
+def _choengmon_1205_mode() -> bool:
+    return os.getenv("PUBLISH_CHOENGMON_1205", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _website_media_backfill_mode() -> bool:
     return os.getenv("BACKFILL_WEBSITE_MEDIA_20260929", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -32,7 +36,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _website_media_backfill_mode():
+if __name__ == "__main__" and _choengmon_1205_mode():
+    import publish_choengmon_1205 as _choengmon
+    _choengmon.run_service_mode()
+elif __name__ == "__main__" and _website_media_backfill_mode():
     import backfill_website_media_20260929 as _wm
     _wm.main()
 elif __name__ == "__main__" and _villa_santi_mode():
