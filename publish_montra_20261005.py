@@ -104,7 +104,7 @@ def _caption_html(lot: str) -> str:
 📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
 👉 <a href="{rent_url}"><b>ЖМИ ЗДЕСЬ</b></a> 👈
 
-Оператор: @Cozy_asia
+Оператор: @cozy_asia
 🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href="{search_url}"><b>НАПИСАТЬ БОТУ</b></a> 🤖
 
 #АрендаСамуи #Ламай #ВиллаСамуи #CozyAsia"""
