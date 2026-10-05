@@ -18,7 +18,7 @@ import publication_safety
 log = logging.getLogger("publish-montra-20261005")
 
 CHANNEL = "arenda_vill_samui"
-EXPECTED_LOT = "1216"
+EXPECTED_LOT = "1215"
 SOURCE_URL = "https://www.facebook.com/marketplace/item/4023955804572839/"
 PHOTO_ZIP_FILE_ID = os.getenv("MONTRA_PHOTO_ZIP_FILE_ID", "").strip()
 MAP_URL = "https://maps.app.goo.gl/8crsg27nVMKyrEuC7?g_st=ac"
