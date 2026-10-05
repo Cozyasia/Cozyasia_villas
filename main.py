@@ -8,6 +8,10 @@ from __future__ import annotations
 import os
 
 
+def _bangrak_garden_mode() -> bool:
+    return os.getenv("PUBLISH_BANGRAK_GARDEN_20261005", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _montra_mode() -> bool:
     return os.getenv("PUBLISH_MONTRA_20261005", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -40,7 +44,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _bangrak_garden_mode():\n    import publish_bangrak_garden_20261005 as _bangrak_garden\n    _bangrak_garden.run_service_mode()\nelif __name__ == "__main__" and _montra_mode():
+if __name__ == "__main__" and _bangrak_garden_mode():
+    import publish_bangrak_garden_20261005 as _bangrak_garden
+    _bangrak_garden.run_service_mode()
+elif __name__ == "__main__" and _montra_mode():
     import publish_montra_20261005 as _montra
     _montra.run_service_mode()
 elif __name__ == "__main__" and _choengmon_1205_mode():
