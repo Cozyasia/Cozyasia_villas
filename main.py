@@ -8,6 +8,10 @@ from __future__ import annotations
 import os
 
 
+def _maenam_skygym_mode() -> bool:
+    return os.getenv("PUBLISH_MAENAM_SKYGYM_20261005", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _bangrak_garden_mode() -> bool:
     return os.getenv("PUBLISH_BANGRAK_GARDEN_20261005", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -44,7 +48,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _bangrak_garden_mode():
+if __name__ == "__main__" and _maenam_skygym_mode():
+    import publish_maenam_skygym_20261005 as _maenam_skygym
+    _maenam_skygym.run_service_mode()
+elif __name__ == "__main__" and _bangrak_garden_mode():
     import publish_bangrak_garden_20261005 as _bangrak_garden
     _bangrak_garden.run_service_mode()
 elif __name__ == "__main__" and _montra_mode():
