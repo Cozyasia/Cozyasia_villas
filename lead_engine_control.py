@@ -171,7 +171,8 @@ async def cmd_start(update, context, catalog):
         "Я буду мониторить approved-источники и присылать сюда новые HOT/WARM запросы. "
         "Первый контакт с человеком выполняется только после твоего подтверждения.\n\n"
         f"Контактный режим: {mode}.\n"
-        "Команды: /traffic_sources /traffic_discover /traffic_scan /traffic_opportunities /traffic_recipient_test"
+        "Команды: /traffic_sources /traffic_discover /traffic_scan /traffic_opportunities "
+        "/traffic_recipient_test /traffic_real_dry_run"
     )
 
 
@@ -226,6 +227,54 @@ async def cmd_traffic_recipient_test(update, context, catalog):
         lead_contact_dry_run.build_recipient_probe_preview(
             source, message_id, recipient
         ),
+        disable_web_page_preview=True,
+    )
+
+
+async def cmd_traffic_real_dry_run(update, context, catalog):
+    """Prepare an AI draft from one exact real Telegram message; never send it."""
+    if not manager._admin_ok(update):
+        return
+    args = list(getattr(context, "args", None) or [])
+    if len(args) != 1:
+        await update.effective_message.reply_text(
+            "Использование: /traffic_real_dry_run https://t.me/source/message_id\n\n"
+            "Работает только для approved-источников. Сообщение человеку НЕ отправляется."
+        )
+        return
+    message_link = str(args[0] or "").strip()
+    admin_username = (getattr(update.effective_user, "username", "") or "").lstrip("@")
+    await update.effective_message.reply_text(
+        "🧪 Загружаю реальное сообщение, проверяю lead-score и готовлю AI-черновик. "
+        "Ничего человеку не отправляю."
+    )
+    try:
+        prepared = await lead_contact_flow.prepare_real_message_dry_run(
+            catalog,
+            message_link,
+            admin_username,
+        )
+    except Exception as exc:
+        log.exception("Real-message dry run failed link=%s", message_link)
+        await update.effective_message.reply_text(
+            f"❌ REAL DRY RUN не подготовлен.\nПричина: {exc}"
+        )
+        return
+
+    key = _lead_key(prepared.lead)
+    await asyncio.to_thread(_set_action, catalog, key, "real_dry_run_ready", admin_username)
+    await update.effective_message.reply_text(
+        "🔎 REAL MESSAGE ANALYSIS\n\n" + _build_card_text(prepared.lead),
+        disable_web_page_preview=True,
+    )
+    preview = lead_contact_dry_run.build_dry_run_preview(
+        prepared.opportunity,
+        prepared.recipient,
+        prepared.draft,
+    )
+    await update.effective_message.reply_text(
+        preview,
+        reply_markup=_draft_keyboard(key),
         disable_web_page_preview=True,
     )
 
@@ -430,6 +479,7 @@ def install_handlers(app, catalog) -> None:
     app.add_handler(CallbackQueryHandler(lambda u, c: cmd_draft_action(u, c, catalog), pattern=r"^draft:(send|edit|cancel):"), group=-29)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: cmd_draft_edit_text(u, c, catalog)), group=-29)
     app.add_handler(CommandHandler("traffic_recipient_test", lambda u, c: cmd_traffic_recipient_test(u, c, catalog)), group=-20)
+    app.add_handler(CommandHandler("traffic_real_dry_run", lambda u, c: cmd_traffic_real_dry_run(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_discover", lambda u, c: manager.cmd_traffic_discover(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_sources", lambda u, c: manager.cmd_traffic_sources(u, c, catalog)), group=-20)
     app.add_handler(CommandHandler("traffic_approve", lambda u, c: manager.cmd_traffic_approve(u, c, catalog)), group=-20)
