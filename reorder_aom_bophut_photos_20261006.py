@@ -14,6 +14,7 @@ import cozy_catalog
 import mtproto_user_client
 import publication_safety
 import update_aom_bophut_media_20261006 as media_update
+from telethon.errors import MessageNotModifiedError
 
 log = logging.getLogger("reorder-aom-bophut-photos-20261006")
 
@@ -99,14 +100,19 @@ async def run() -> dict:
             else:
                 text = by_id[message_id].message or ""
                 formatting_entities = by_id[message_id].entities or []
-            await client.edit_message(
-                channel,
-                message_id,
-                text,
-                formatting_entities=formatting_entities,
-                file=str(photo),
-                link_preview=False,
-            )
+            try:
+                await client.edit_message(
+                    channel,
+                    message_id,
+                    text,
+                    formatting_entities=formatting_entities,
+                    file=str(photo),
+                    link_preview=False,
+                )
+            except MessageNotModifiedError:
+                # Safe idempotency: a previous interrupted run may already have
+                # placed this exact photo and caption in the requested slot.
+                log.info("Album slot already correct: message_id=%s", message_id)
 
         verify = await client.get_messages(channel, ids=list(MESSAGE_IDS))
         verify_by_id = {message.id: message for message in verify if message}
