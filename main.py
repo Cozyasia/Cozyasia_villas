@@ -8,7 +8,11 @@ from __future__ import annotations
 import os
 
 
-def _aom_bophut_reorder_mode() -> bool:\n    return os.getenv("REORDER_AOM_BOPHUT_PHOTOS_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}\n\n\ndef _aom_bophut_media_mode() -> bool:
+def _aom_bophut_reorder_mode() -> bool:
+    return os.getenv("REORDER_AOM_BOPHUT_PHOTOS_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _aom_bophut_media_mode() -> bool:
     return os.getenv("UPDATE_AOM_BOPHUT_MEDIA_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -56,7 +60,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _aom_bophut_reorder_mode():\n    import reorder_aom_bophut_photos_20261006 as _aom_bophut_reorder\n    _aom_bophut_reorder.run_service_mode()\nelif __name__ == "__main__" and _aom_bophut_media_mode():
+if __name__ == "__main__" and _aom_bophut_reorder_mode():
+    import reorder_aom_bophut_photos_20261006 as _aom_bophut_reorder
+    _aom_bophut_reorder.run_service_mode()
+elif __name__ == "__main__" and _aom_bophut_media_mode():
     import update_aom_bophut_media_20261006 as _aom_bophut_media
     _aom_bophut_media.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_mode():
