@@ -135,8 +135,13 @@ async def run() -> dict:
         raise RuntimeError("MTProto Premium session is not authorized")
     try:
         channel = await client.get_entity(CHANNEL)
+        if os.getenv("CLEANUP_AOM_DUPLICATE_1219", "0").strip().lower() in {"1", "true", "yes", "on"}:
+            duplicate_caption = await client.get_messages(channel, ids=1212)
+            if duplicate_caption and publication_safety.lot_from_message(duplicate_caption) == "1219":
+                await client.delete_messages(channel, list(range(1212, 1222)), revoke=True)
+                log.info("Deleted accidental duplicate album for lot 1219 (messages 1212-1221)")
         duplicate = await publication_safety.find_duplicate_listing(
-            client, channel, ("B5PyarN9dictuPUC7", "95 000", "Общий бассейн рядом"), limit=300
+            client, channel, ("Светлая двухспальная вилла", "95 000", "новогодний сезон"), limit=300
         )
         if duplicate:
             lot = publication_safety.lot_from_message(duplicate)
