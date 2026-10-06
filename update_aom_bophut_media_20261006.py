@@ -5,12 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import mimetypes
 import os
-import shutil
-import uuid
-import zipfile
-from pathlib import Path
 
 import channel_publication_policy
 import cozy_catalog
@@ -25,7 +20,6 @@ MESSAGE_ID = 1202
 MAP_URL = "https://maps.app.goo.gl/B5PyarN9dictuPUC7?g_st=ac"
 PHOTO_ZIP_FILE_ID = os.getenv("AOM_BOPHUT_PHOTO_ZIP_FILE_ID", "").strip()
 VIDEO_SOURCE_FILE_ID = os.getenv("AOM_BOPHUT_VIDEO_SOURCE_FILE_ID", "").strip()
-FOLDER_NAME = "LOT 1218 — Bo Phut villa — additional photos and video"
 
 
 def enabled() -> bool:
@@ -46,117 +40,27 @@ def _drive_session():
     return AuthorizedSession(creds)
 
 
-def _download(session, file_id: str) -> bytes:
-    response = session.get(
-        f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media",
-        timeout=240,
-    )
-    response.raise_for_status()
-    return response.content
-
-
-def _find_one(session, query: str, fields: str = "files(id,name,mimeType)") -> dict | None:
-    response = session.get(
-        "https://www.googleapis.com/drive/v3/files",
-        params={"q": query, "fields": fields, "pageSize": 20},
-        timeout=60,
-    )
-    response.raise_for_status()
-    files = response.json().get("files") or []
-    return files[0] if files else None
-
-
-def _ensure_folder(session) -> str:
-    safe_name = FOLDER_NAME.replace("'", "\\'")
-    found = _find_one(
-        session,
-        f"name = '{safe_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
-    )
-    if found:
-        folder_id = found["id"]
-    else:
-        response = session.post(
-            "https://www.googleapis.com/drive/v3/files",
-            params={"fields": "id,name"},
-            json={"name": FOLDER_NAME, "mimeType": "application/vnd.google-apps.folder"},
-            timeout=60,
-        )
-        response.raise_for_status()
-        folder_id = response.json()["id"]
-    permission = session.post(
-        f"https://www.googleapis.com/drive/v3/files/{folder_id}/permissions",
-        params={"fields": "id", "sendNotificationEmail": "false"},
-        json={"type": "anyone", "role": "reader"},
-        timeout=60,
-    )
-    if permission.status_code not in {200, 201, 409}:
-        permission.raise_for_status()
-    return folder_id
-
-
-def _multipart_upload(session, folder_id: str, name: str, data: bytes, mime_type: str) -> str:
-    safe_name = name.replace("'", "\\'")
-    found = _find_one(
-        session,
-        f"name = '{safe_name}' and '{folder_id}' in parents and trashed = false",
-    )
-    if found:
-        return found["id"]
-    boundary = "cozy_" + uuid.uuid4().hex
-    metadata = json.dumps(
-        {"name": name, "parents": [folder_id]}, ensure_ascii=False
-    ).encode("utf-8")
-    body = (
-        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".encode()
-        + metadata
-        + f"\r\n--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n".encode()
-        + data
-        + f"\r\n--{boundary}--\r\n".encode()
-    )
+def _make_public(session, file_id: str) -> None:
+    """Expose a user-owned Drive file after it was shared with the bot as writer."""
     response = session.post(
-        "https://www.googleapis.com/upload/drive/v3/files",
-        params={"uploadType": "multipart", "fields": "id,name"},
-        headers={"Content-Type": f"multipart/related; boundary={boundary}"},
-        data=body,
-        timeout=300,
+        f"https://www.googleapis.com/drive/v3/files/{file_id}/permissions",
+        params={"fields": "id", "sendNotificationEmail": "false"},
+        json={"type": "anyone", "role": "reader", "allowFileDiscovery": False},
+        timeout=60,
     )
-    response.raise_for_status()
-    return response.json()["id"]
+    if response.status_code not in {200, 201, 409}:
+        response.raise_for_status()
 
 
 def _prepare_drive_media() -> tuple[str, str, int]:
     if not PHOTO_ZIP_FILE_ID or not VIDEO_SOURCE_FILE_ID:
         raise RuntimeError("Drive source file IDs are missing")
     session = _drive_session()
-    folder_id = _ensure_folder(session)
-    work = Path("/tmp/cozy_aom_bophut_media_20261006")
-    if work.exists():
-        shutil.rmtree(work)
-    work.mkdir(parents=True)
-    archive = work / "photos.zip"
-    archive.write_bytes(_download(session, PHOTO_ZIP_FILE_ID))
-    photos_dir = work / "photos"
-    photos_dir.mkdir()
-    with zipfile.ZipFile(archive, "r") as zipped:
-        for item in zipped.namelist():
-            if item.startswith("photos/") and not item.endswith("/"):
-                zipped.extract(item, work)
-    photos = sorted((work / "photos").iterdir())
-    if len(photos) != 10:
-        raise RuntimeError(f"Expected 10 photos, got {len(photos)}")
-    for path in photos:
-        mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        _multipart_upload(session, folder_id, path.name, path.read_bytes(), mime_type)
-    video_id = _multipart_upload(
-        session,
-        folder_id,
-        "LOT 1218 — видео виллы Bo Phut.mp4",
-        _download(session, VIDEO_SOURCE_FILE_ID),
-        "video/mp4",
-    )
-    folder_url = f"https://drive.google.com/drive/folders/{folder_id}?usp=sharing"
-    video_url = f"https://drive.google.com/file/d/{video_id}/view?usp=sharing"
-    return folder_url, video_url, len(photos)
+    _make_public(session, PHOTO_ZIP_FILE_ID)
+    _make_public(session, VIDEO_SOURCE_FILE_ID)
+    photos_url = f"https://drive.google.com/file/d/{PHOTO_ZIP_FILE_ID}/view?usp=sharing"
+    video_url = f"https://drive.google.com/file/d/{VIDEO_SOURCE_FILE_ID}/view?usp=sharing"
+    return photos_url, video_url, 10
 
 
 def _caption_html(folder_url: str, video_url: str) -> str:
