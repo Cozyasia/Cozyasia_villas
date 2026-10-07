@@ -8,6 +8,10 @@ from __future__ import annotations
 import os
 
 
+def _fb_1548741747291928_mode() -> bool:
+    return os.getenv("PUBLISH_FB_1548741747291928", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _aom_bophut_reorder_mode() -> bool:
     return os.getenv("REORDER_AOM_BOPHUT_PHOTOS_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -60,7 +64,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _aom_bophut_reorder_mode():
+if __name__ == "__main__" and _fb_1548741747291928_mode():
+    import publish_fb_1548741747291928 as _fb_1548741747291928
+    _fb_1548741747291928.run_service_mode()
+elif __name__ == "__main__" and _aom_bophut_reorder_mode():
     import reorder_aom_bophut_photos_20261006 as _aom_bophut_reorder
     _aom_bophut_reorder.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_media_mode():
