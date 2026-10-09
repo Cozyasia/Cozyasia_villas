@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -97,15 +98,14 @@ def _final_caption(lot: str):
 def _download_photos(directory: str) -> list[str]:
     photo_dir = Path(directory) / "photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
+    bundled_dir = Path(__file__).resolve().parent / "publication_assets" / SOURCE_ID
+    bundled = sorted(bundled_dir.glob("*.jpg"))
+    if len(bundled) < 10:
+        raise RuntimeError(f"Bundled Marketplace photo set is incomplete: {bundled_dir}")
     paths = []
-    for index, url in enumerate(PHOTO_URLS, start=1):
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=90)
-        response.raise_for_status()
-        content_type = response.headers.get("content-type", "")
-        if "image" not in content_type:
-            raise RuntimeError(f"Marketplace photo {index} is not an image: {content_type}")
+    for index, source in enumerate(bundled[:10], start=1):
         target = photo_dir / f"{index:02d}.jpg"
-        target.write_bytes(response.content)
+        shutil.copyfile(source, target)
         if target.stat().st_size < 10_000:
             raise RuntimeError(f"Marketplace photo {index} is unexpectedly small")
         paths.append(str(target))
@@ -157,5 +157,4 @@ async def run() -> dict:
 def run_service_mode() -> None:
     result = asyncio.run(run())
     print("PUBLISH_FB_3525763387738681_RESULT=" + json.dumps(result, ensure_ascii=False))
-
 
