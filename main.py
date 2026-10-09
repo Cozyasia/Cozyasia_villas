@@ -12,6 +12,10 @@ def _fb_1548741747291928_mode() -> bool:
     return os.getenv("PUBLISH_FB_1548741747291928", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _fb_3525763387738681_mode() -> bool:
+    return os.getenv("PUBLISH_FB_3525763387738681", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _aom_bophut_reorder_mode() -> bool:
     return os.getenv("REORDER_AOM_BOPHUT_PHOTOS_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -67,6 +71,9 @@ def _drive_link_edit_mode() -> bool:
 if __name__ == "__main__" and _fb_1548741747291928_mode():
     import publish_fb_1548741747291928 as _fb_1548741747291928
     _fb_1548741747291928.run_service_mode()
+elif __name__ == "__main__" and _fb_3525763387738681_mode():
+    import publish_fb_3525763387738681 as _fb_3525763387738681
+    _fb_3525763387738681.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_reorder_mode():
     import reorder_aom_bophut_photos_20261006 as _aom_bophut_reorder
     _aom_bophut_reorder.run_service_mode()
@@ -136,3 +143,4 @@ else:
         _disable_accidental_startup_publishers()
         _run_drive_permission_probe_if_requested()
         _entry.main()
+
