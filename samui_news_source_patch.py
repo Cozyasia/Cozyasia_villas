@@ -29,6 +29,11 @@ GOOGLE_QUERIES = (
     "site:tmd.go.th Surat Thani Gulf storm warning",
     # Island-first Thai searches for police, ferries, rescue and local decisions.
     "เกาะสมุย ตำรวจ อุบัติเหตุ กู้ภัย",
+    "เกาะสมุย ข่าววันนี้",
+    "เกาะพะงัน ข่าววันนี้",
+    "เกาะสมุย เทศบาล ประกาศ",
+    "เกาะพะงัน อำเภอ ประกาศ",
+    "สมุย พะงัน ข่าว เรือ ท่าเรือ",
     "เกาะพะงัน ตำรวจ อุบัติเหตุ กู้ภัย",
     "เกาะสมุย เกาะพะงัน เรือเฟอร์รี่ ยกเลิก",
     "Koh Samui news",
@@ -550,11 +555,13 @@ def _should_publish_enhanced(
         and x.get("novelty") != "duplicate"
     ]
     if not fresh or state.get("posts", 0) >= max_posts:
+        log.info("Publication gate: fresh=%s posts_today=%s limit=%s", len(fresh), state.get("posts", 0), max_posts)
         return False, []
     last_post = state.get("last_post")
     if last_post and (
         datetime.now(timezone.utc) - last_post
     ).total_seconds() < min_gap_seconds:
+        log.info("Publication gate: minimum posting interval not elapsed")
         return False, []
     ranked = sorted(fresh, key=_importance_enhanced, reverse=True)
     best = _importance_enhanced(ranked[0])
@@ -563,6 +570,8 @@ def _should_publish_enhanced(
         or (best >= 2 and len(ranked) >= 2)
         or (18 <= now.hour <= 22 and best >= 2)
     )
+    if not publish:
+        log.info("Publication gate: insufficient importance; best_score=%s fresh=%s", best, len(fresh))
     return publish, ranked[:5] if publish else []
 
 
