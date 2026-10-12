@@ -18,6 +18,19 @@ import requests
 log = logging.getLogger("samui-news-source-patch")
 
 GOOGLE_QUERIES = (
+    # Verified Thai official/regional publishers; index-based discovery needs no API keys.
+    "site:suratthani.prd.go.th เกาะสมุย",
+    "site:suratthani.prd.go.th เกาะพะงัน",
+    "site:media.suratthani.go.th เกาะสมุย",
+    "site:media.suratthani.go.th เกาะพะงัน",
+    "site:palangkhao.com เกาะสมุย",
+    "site:palangkhao.com เกาะพะงัน",
+    "site:tmd.go.th สมุย พะงัน คลื่นลม",
+    "site:tmd.go.th Surat Thani Gulf storm warning",
+    # Island-first Thai searches for police, ferries, rescue and local decisions.
+    "เกาะสมุย ตำรวจ อุบัติเหตุ กู้ภัย",
+    "เกาะพะงัน ตำรวจ อุบัติเหตุ กู้ภัย",
+    "เกาะสมุย เกาะพะงัน เรือเฟอร์รี่ ยกเลิก",
     "Koh Samui news",
     "เกาะสมุย ข่าว",
     "Koh Samui immigration visa ferry airport weather police",
