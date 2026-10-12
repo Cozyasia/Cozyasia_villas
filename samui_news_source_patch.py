@@ -301,27 +301,28 @@ async def _telegram_candidates(mt, catalog, target_channel: str):
                     "Could not resolve configured Telegram news source: %s", ref
                 )
 
-        async for dialog in client.iter_dialogs(limit=250):
-            entity = dialog.entity
-            username = getattr(entity, "username", None)
-            name = (
-                getattr(dialog, "name", None)
-                or getattr(entity, "title", None)
-                or ""
-            ).strip()
-            if not username or username.lower() == target_username:
-                continue
-            if not (
-                getattr(dialog, "is_group", False)
-                or getattr(dialog, "is_channel", False)
-            ):
-                continue
-            if not _geo_match(name):
-                continue
-            selected.setdefault(
-                int(getattr(entity, "id", hash(username))),
-                (entity, name, username),
-            )
+        if os.environ.get("SAMUI_NEWS_TG_AUTODISCOVERY", "0") == "1":
+            async for dialog in client.iter_dialogs(limit=250):
+                entity = dialog.entity
+                username = getattr(entity, "username", None)
+                name = (
+                    getattr(dialog, "name", None)
+                    or getattr(entity, "title", None)
+                    or ""
+                ).strip()
+                if not username or username.lower() == target_username:
+                    continue
+                if not (
+                    getattr(dialog, "is_group", False)
+                    or getattr(dialog, "is_channel", False)
+                ):
+                    continue
+                if not _geo_match(name):
+                    continue
+                selected.setdefault(
+                    int(getattr(entity, "id", hash(username))),
+                    (entity, name, username),
+                )
 
         try:
             target = await client.get_entity(target_channel)
@@ -527,7 +528,7 @@ def _llm_novelty(news, items: list[dict], recent_posts: list[str]) -> list[dict]
 
 
 def _should_publish_enhanced(
-    items, state, now, max_posts=5, min_gap_seconds=5400
+    items, state, now, max_posts=7, min_gap_seconds=5400
 ):
     fresh = [
         x
@@ -622,7 +623,7 @@ def apply(news, mt, catalog):
     news._REGIONAL_SOURCE_PATCH_V1 = True
 
     history_days = int(os.environ.get("SAMUI_NEWS_HISTORY_DAYS", "14") or 14)
-    max_posts = int(os.environ.get("SAMUI_NEWS_MAX_POSTS_PER_DAY", "5") or 5)
+    max_posts = int(os.environ.get("SAMUI_NEWS_MAX_POSTS_PER_DAY", "7") or 7)
     min_gap = int(
         os.environ.get("SAMUI_NEWS_MIN_POST_GAP_SECONDS", "5400") or 5400
     )
@@ -669,7 +670,7 @@ def apply(news, mt, catalog):
     news._fetch_candidates = _fetch_candidates_enhanced
     log.info(
         "Samui News regional source patch enabled: Samui + Phangan + Koh Tao + Surat Thani; "
-        "history=%sd max_posts=%s min_gap=%ss; Telegram public-group autodiscovery=on; Facebook Graph=%s",
+        "history=%sd max_posts=%s min_gap=%ss; Telegram public-group autodiscovery=opt-in; Facebook Graph=%s",
         history_days,
         max_posts,
         min_gap,
