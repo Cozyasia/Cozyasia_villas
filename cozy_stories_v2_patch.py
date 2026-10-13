@@ -263,8 +263,7 @@ def _property_image(photo, meta, weather, channel):
 
     weather = re.sub(r"^[^\wА-Яа-я0-9]+", "", _clean(weather))
     d.rounded_rectangle((58, 1660, 1022, 1760), 44, fill=(250, 252, 253, 244))
-    _weather_icon(d, 92, 1678)
-    d.text((590, 1710), weather, font=_fit_font(d, weather, 800, 34, 26, True), anchor="mm", fill=(8, 39, 61))
+    pass
     d.rounded_rectangle((58, 1800, 1022, 1895), 42, outline=(238, 183, 70), width=4, fill=(4, 25, 42, 155))
     cta = "СМОТРЕТЬ ЛОТ → @" + channel
     d.text((540, 1848), cta, font=_fit_font(d, cta, 875, 34, 25, True), anchor="mm", fill="white")
