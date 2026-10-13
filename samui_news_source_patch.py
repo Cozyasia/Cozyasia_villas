@@ -185,6 +185,8 @@ def _importance_enhanced(item: dict) -> int:
         "เทศกาล", "อากาศ", "นักท่องเที่ยว",
     )
     score = sum(2 for x in critical if x in text) + sum(1 for x in useful if x in text)
+    if item.get("source_kind") == "google_news" and _geo_match(item.get("title", "")):
+        score += 2
     if _geo_match(text):
         score += 1
     if item.get("novelty") == "update":
