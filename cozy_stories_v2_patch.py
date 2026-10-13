@@ -221,6 +221,14 @@ def _property_image(photo, meta, weather, channel):
     blurred = ImageEnhance.Brightness(blurred).enhance(0.66)
     hero = ImageOps.fit(photo, (1080, 1920), method=R, centering=(0.5, 0.48))
     base = Image.blend(blurred, hero, 0.9).convert("RGBA")
+    if len(photos) > 1:
+        from PIL import ImageDraw as _Draw
+        panel = Image.new("RGB", (1080, 780), (5, 29, 46))
+        boxes = [(8, 8, 536, 386), (544, 8, 1072, 386),
+                 (8, 394, 536, 772), (544, 394, 1072, 772)]
+        for picture, box in zip(photos[:4], boxes):
+            panel.paste(ImageOps.fit(picture, (box[2]-box[0], box[3]-box[1]), method=R), box[:2])
+        base.paste(panel, (0, 430))
     overlay = Image.new("RGBA", base.size, (0, 0, 0, 0)); d = ImageDraw.Draw(overlay)
     d.rectangle((0, 0, 1080, 500), fill=(3, 18, 31, 172))
     d.rectangle((0, 1218, 1080, 1920), fill=(3, 18, 31, 226))
