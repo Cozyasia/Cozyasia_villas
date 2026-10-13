@@ -246,7 +246,7 @@ def _google_candidates() -> list[dict]:
     seen: set[str] = set()
     for query in GOOGLE_QUERIES:
         url = "https://news.google.com/rss/search?" + urllib.parse.urlencode(
-            {"q": query + " when:2d", "hl": "en", "gl": "TH", "ceid": "TH:en"}
+            {"q": query + " when:3d", "hl": "th", "gl": "TH", "ceid": "TH:th"}
         )
         try:
             response = requests.get(
