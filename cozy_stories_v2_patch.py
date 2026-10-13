@@ -167,7 +167,7 @@ async def _photo(client, msg):
     idx = await asyncio.to_thread(_vision_index, images[:8])
     idx = min(idx, len(images) - 1)
     log.info("COZY_STORY_V2_HERO source_mid=%s hero_mid=%s position=%s/%s", msg.id, mids[idx], idx + 1, len(images))
-    return images[idx]
+    return [images[idx]] + [im for j, im in enumerate(images) if j != idx][:3]
 
 
 def _pin(draw, x, y):
@@ -215,6 +215,8 @@ def _strip_label(value, label=None):
 def _property_image(photo, meta, weather, channel):
     from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
     R = getattr(Image, "Resampling", Image).LANCZOS
+    photos = photo if isinstance(photo, list) else [photo]
+    photo = photos[0]
     blurred = ImageOps.fit(photo, (1080, 1920), method=R).filter(ImageFilter.GaussianBlur(14))
     blurred = ImageEnhance.Brightness(blurred).enhance(0.66)
     hero = ImageOps.fit(photo, (1080, 1920), method=R, centering=(0.5, 0.48))
