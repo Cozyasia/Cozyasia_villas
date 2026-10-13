@@ -230,7 +230,7 @@ def _property_image(photo, meta, weather, channel):
             panel.paste(ImageOps.fit(picture, (box[2]-box[0], box[3]-box[1]), method=R), box[:2])
         base.paste(panel, (0, 430))
     overlay = Image.new("RGBA", base.size, (0, 0, 0, 0)); d = ImageDraw.Draw(overlay)
-    d.rectangle((0, 0, 1080, 500), fill=(3, 18, 31, 172))
+    d.rectangle((0, 0, 1080, 400), fill=(3, 18, 31, 220))
     d.rectangle((0, 1218, 1080, 1920), fill=(3, 18, 31, 226))
     d.rectangle((0, 1218, 1080, 1230), fill=(221, 174, 73, 175))
     image = Image.alpha_composite(base, overlay); d = ImageDraw.Draw(image)
@@ -263,7 +263,6 @@ def _property_image(photo, meta, weather, channel):
 
     weather = re.sub(r"^[^\wА-Яа-я0-9]+", "", _clean(weather))
     d.rounded_rectangle((58, 1660, 1022, 1760), 44, fill=(250, 252, 253, 244))
-    pass
     d.rounded_rectangle((58, 1800, 1022, 1895), 42, outline=(238, 183, 70), width=4, fill=(4, 25, 42, 155))
     cta = "СМОТРЕТЬ ЛОТ → @" + channel
     d.text((540, 1848), cta, font=_fit_font(d, cta, 875, 34, 25, True), anchor="mm", fill="white")
