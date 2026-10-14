@@ -694,7 +694,7 @@ def apply(news, mt, catalog):
         os.environ.get("SAMUI_NEWS_MAX_STORIES_PER_DAY", "3") or 3
     )
     news.MIN_POST_GAP_SECONDS = min_gap
-    news.SCAN_HOURS = range(6, 24)
+    news.SCAN_HOURS = range(0, 24)
     news._daily_state = _history_state_factory(news, history_days=history_days)
     news._should_publish = lambda items, state, now: _should_publish_enhanced(
         items, state, now, max_posts=max_posts, min_gap_seconds=min_gap
