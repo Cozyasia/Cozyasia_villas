@@ -588,6 +588,26 @@ def _should_publish_enhanced(
     return publish, ranked[:5] if publish else []
 
 
+def _compose_without_ai(news, items):
+    """Source-attributed headlines if OpenAI billing is exhausted."""
+    parts = ["📰 <b>Новости островов: главное</b>"]
+    for item in items[:3]:
+        title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()
+        url = str(item.get("url") or "").strip()
+        source = str(item.get("source_name") or "Источник").strip()
+        if not title or not url.startswith(("https://", "http://")):
+            continue
+        parts.append("🔹 <b>" + html.escape(title[:180]) + "</b>")
+        parts.append('Источник: <a href="' + html.escape(url, quote=True) + '">' + html.escape(source[:80]) + "</a>")
+    if len(parts) == 1:
+        raise RuntimeError("No sourced headlines available for news fallback")
+    parts.extend(["🌊 Samui News — Самуи • Панган • Ко Тао • Сураттхани.", "#Самуи #Панган #НовостиТаиланда"])
+    result = "\n".join(parts)
+    if len(news._plain(result)) > news.POST_CAPTION_TARGET_CHARS and len(items) > 1:
+        return _compose_without_ai(news, items[:1])
+    return result
+
+
 def _compose_factory(news):
     def _compose(items, slot):
         from openai import OpenAI
@@ -616,38 +636,44 @@ def _compose_factory(news):
 Верни только готовый HTML; допустимы теги b, i, a. Не добавляй markdown.
 
 Кандидаты:\n{payload}"""
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        result = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            temperature=0.2,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = (result.choices[0].message.content or "").strip()
-        text = re.sub(r"^```(?:html)?\s*|\s*```$", "", text, flags=re.I)
-        if not text:
-            raise RuntimeError("OpenAI returned an empty regional news post")
-        if len(news._plain(text)) > news.POST_CAPTION_TARGET_CHARS:
-            compress = client.chat.completions.create(
+        try:
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+            result = client.chat.completions.create(
                 model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-                temperature=0,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Сожми HTML-пост до {news.POST_CAPTION_TARGET_CHARS} видимых знаков. Сохрани новые факты, источники, "
-                            "финальную строку и 3–5 хэштегов. Не добавляй фактов. Верни только HTML.\n\n"
-                            + text
-                        ),
-                    }
-                ],
+                temperature=0.2,
+                messages=[{"role": "user", "content": prompt}],
             )
-            candidate = (compress.choices[0].message.content or "").strip()
-            candidate = re.sub(
-                r"^```(?:html)?\s*|\s*```$", "", candidate, flags=re.I
-            )
-            if candidate:
-                text = candidate
-        return text
+            text = (result.choices[0].message.content or "").strip()
+            text = re.sub(r"^```(?:html)?\s*|\s*```$", "", text, flags=re.I)
+            if not text:
+                raise RuntimeError("OpenAI returned an empty regional news post")
+            if len(news._plain(text)) > news.POST_CAPTION_TARGET_CHARS:
+                compress = client.chat.completions.create(
+                    model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                    temperature=0,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Сожми HTML-пост до {news.POST_CAPTION_TARGET_CHARS} видимых знаков. Сохрани новые факты, источники, "
+                                "финальную строку и 3–5 хэштегов. Не добавляй фактов. Верни только HTML.\n\n"
+                                + text
+                            ),
+                        }
+                    ],
+                )
+                candidate = (compress.choices[0].message.content or "").strip()
+                candidate = re.sub(
+                    r"^```(?:html)?\s*|\s*```$", "", candidate, flags=re.I
+                )
+                if candidate:
+                    text = candidate
+            return text
+        except Exception as exc:
+            if getattr(exc, "status_code", None) == 429 or "insufficient_quota" in str(exc) or "credit_balance_exhausted" in str(exc):
+                log.warning("OpenAI unavailable for news composition; using sourced headline fallback: %s", type(exc).__name__)
+                return _compose_without_ai(news, items)
+            raise
 
     return _compose
 
