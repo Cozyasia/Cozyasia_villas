@@ -20,6 +20,10 @@ def _fb_1741918390416111_mode() -> bool:
     return os.getenv("PUBLISH_FB_1741918390416111", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _fb_living_pool_mode() -> bool:
+    return os.getenv("PUBLISH_FB_LIVING_POOL_20261015", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _aom_bophut_reorder_mode() -> bool:
     return os.getenv("REORDER_AOM_BOPHUT_PHOTOS_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -81,6 +85,9 @@ elif __name__ == "__main__" and _fb_3525763387738681_mode():
 elif __name__ == "__main__" and _fb_1741918390416111_mode():
     import publish_fb_1741918390416111 as _fb_1741918390416111
     _fb_1741918390416111.run_service_mode()
+elif __name__ == "__main__" and _fb_living_pool_mode():
+    import publish_fb_living_pool_villas_20261015 as _fb_living_pool
+    _fb_living_pool.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_reorder_mode():
     import reorder_aom_bophut_photos_20261006 as _aom_bophut_reorder
     _aom_bophut_reorder.run_service_mode()
