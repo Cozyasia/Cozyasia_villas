@@ -22,7 +22,9 @@ from publish_fb_living_pool_villas_20261015 import _final_caption
 
 CHANNEL = "samuirental"
 LOT = "1210"
-LEGACY_SPLIT_RANGE = range(5184, 5194)
+# Message IDs occupied by the split albums and the two failed repair retries.
+# They are constrained to this one-shot run's contiguous publication window.
+LEGACY_SPLIT_RANGE = range(5184, 5224)
 # Ten Facebook CDN URLs from the source post/gallery.  The job is one-shot, so
 # downloading at run time avoids adding private source files to the repository.
 PHOTO_URLS = (
