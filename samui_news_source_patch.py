@@ -475,6 +475,63 @@ def _facebook_graph_candidates() -> list[dict]:
     return items[:80]
 
 
+def _facebook_public_candidates() -> list[dict]:
+    """Discover indexed public Facebook posts without cookies or a Graph token.
+
+    Google News RSS may omit Facebook posts entirely. This source is best-effort,
+    and deliberately does not try to evade Facebook login walls or CAPTCHAs.
+    """
+    if os.environ.get("SAMUI_NEWS_FACEBOOK_PUBLIC_ENABLED", "1") != "1":
+        return []
+    queries = (
+        'site:facebook.com/posts/ "Koh Samui" when:3d',
+        'site:facebook.com "Koh Samui" "police" when:3d',
+        'site:facebook.com "Koh Phangan" "news" when:3d',
+        'site:facebook.com "เกาะสมุย" "ข่าว" when:3d',
+        'site:facebook.com "เกาะพะงัน" "ข่าว" when:3d',
+    )
+    seen: set[str] = set()
+    items: list[dict] = []
+    for query in queries:
+        feed = "https://news.google.com/rss/search?" + urllib.parse.urlencode(
+            {"q": query, "hl": "en", "gl": "TH", "ceid": "TH:en"}
+        )
+        try:
+            response = requests.get(feed, timeout=12, headers={"User-Agent": "SamuiNews/3.0"})
+            response.raise_for_status()
+            root = ET.fromstring(response.content)
+            for node in root.findall(".//item")[:15]:
+                link = _strip(node.findtext("link"))
+                title = _strip(node.findtext("title"))
+                desc = _strip(node.findtext("description"))
+                date = _strip(node.findtext("pubDate"))
+                source_node = node.find("source")
+                publisher_url = (source_node.attrib.get("url", "") if source_node is not None else "")
+                # Only accept verifiable Facebook links, not third-party articles
+                # that happen to mention Facebook.
+                direct = link if "facebook.com/" in urllib.parse.urlparse(link).netloc + urllib.parse.urlparse(link).path else ""
+                if not direct and "facebook.com" in publisher_url:
+                    direct = publisher_url
+                if not direct or not urllib.parse.urlparse(direct).hostname in (
+                    "facebook.com", "www.facebook.com", "m.facebook.com"
+                ):
+                    continue
+                if direct in seen or not _geo_match(title + " " + desc):
+                    continue
+                if not _looks_newsworthy(title + " " + desc, "Facebook"):
+                    continue
+                seen.add(direct)
+                items.append({
+                    "title": title[:220], "url": direct, "published": date,
+                    "source_name": "Facebook (публичная публикация)",
+                    "source_url": direct, "source_kind": "facebook_public",
+                    "text": (title + " " + desc)[:1200],
+                })
+        except Exception as exc:
+            log.warning("Facebook public index unavailable for query %s: %s", query, exc)
+    return items[:30]
+
+
 def _dedupe_candidate_list(items: list[dict]) -> list[dict]:
     result = []
     seen_urls, seen_titles = set(), set()
@@ -704,7 +761,7 @@ def apply(news, mt, catalog):
     def _fetch_candidates_enhanced():
         global _RECENT_CHANNEL_POSTS, _LAST_TG_SOURCES
         google = _google_candidates()
-        facebook = _facebook_graph_candidates()
+        facebook = _facebook_graph_candidates() + _facebook_public_candidates()
         telegram, recent, sources = [], [], []
         try:
             telegram, recent, sources = asyncio.run(
@@ -731,9 +788,10 @@ def apply(news, mt, catalog):
     news._fetch_candidates = _fetch_candidates_enhanced
     log.info(
         "Samui News regional source patch enabled: Samui + Phangan + Koh Tao + Surat Thani; "
-        "history=%sd max_posts=%s min_gap=%ss; Telegram public-group autodiscovery=opt-in; Facebook Graph=%s",
+        "history=%sd max_posts=%s min_gap=%ss; Telegram public-group autodiscovery=opt-in; Facebook Graph=%s; public Facebook index=%s",
         history_days,
         max_posts,
         min_gap,
         bool(os.environ.get("SAMUI_NEWS_FACEBOOK_TOKEN")),
+        os.environ.get("SAMUI_NEWS_FACEBOOK_PUBLIC_ENABLED", "1") == "1",
     )
