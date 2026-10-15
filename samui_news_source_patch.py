@@ -642,6 +642,14 @@ def _should_publish_enhanced(
     )
     if not publish:
         log.info("Publication gate: insufficient importance; best_score=%s fresh=%s", best, len(fresh))
+        for item in ranked[:5]:
+            log.info(
+                "Samui News review candidate: score=%s source=%s title=%s url=%s",
+                _importance_enhanced(item),
+                str(item.get("source_name", ""))[:100],
+                str(item.get("title", ""))[:220],
+                str(item.get("url", ""))[:500],
+            )
     return publish, ranked[:5] if publish else []
 
 
