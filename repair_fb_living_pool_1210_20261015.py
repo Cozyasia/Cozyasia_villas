@@ -66,6 +66,26 @@ def _groups(messages):
     return by_group, singles
 
 
+async def _expand_caption_group(client, channel, caption) -> list:
+    gid = int(getattr(caption, "grouped_id", 0) or 0)
+    if not gid:
+        return [caption]
+    start = max(1, int(caption.id) - 12)
+    nearby = await client.get_messages(channel, ids=list(range(start, int(caption.id) + 13)))
+    nearby = nearby if isinstance(nearby, list) else [nearby]
+    return [item for item in nearby if item and int(getattr(item, "grouped_id", 0) or 0) == gid]
+
+
+async def _candidate_groups(client, channel, messages: list) -> dict[int, list]:
+    groups: dict[int, list] = {}
+    for caption in [item for item in messages if _is_candidate(item)]:
+        gid = int(getattr(caption, "grouped_id", 0) or 0)
+        expanded = await _expand_caption_group(client, channel, caption)
+        key = gid or -int(caption.id)
+        groups[key] = expanded
+    return groups
+
+
 def _valid_album(group: list) -> bool:
     if len(group) != 10 or any(not getattr(item, "media", None) for item in group):
         return False
@@ -133,13 +153,16 @@ async def run() -> dict:
     try:
         channel = await client.get_entity(CHANNEL)
         recent = await _recent_messages(client, channel)
-        by_group, _ = _groups([message for message in recent if _is_candidate(message)])
+        by_group = await _candidate_groups(client, channel, recent)
         valid = [group for group in by_group.values() if _valid_album(group)]
         if valid:
-            keep_ids = {int(item.id) for item in valid[0]}
-            old = [message for message in recent if _is_candidate(message) and int(message.id) not in keep_ids]
-            deleted = await _delete_old_candidates(client, channel, old)
-            caption = next(item for item in valid[0] if _text(item))
+            keep = max(valid, key=lambda group: max(int(item.id) for item in group))
+            keep_ids = {int(item.id) for item in keep}
+            old_ids = {int(item.id) for group in by_group.values() for item in group if int(item.id) not in keep_ids}
+            if old_ids:
+                await client.delete_messages(channel, sorted(old_ids), revoke=True)
+            deleted = sorted(old_ids)
+            caption = next(item for item in keep if _text(item))
             deleted += await _delete_legacy_split_media(client, channel, int(getattr(caption, "grouped_id", 0) or 0))
             result = {
                 "channel": CHANNEL,
@@ -154,7 +177,11 @@ async def run() -> dict:
             log.info("REPAIR_FB_LIVING_POOL_1210_DONE %s", json.dumps(result, ensure_ascii=False))
             return result
 
-        deleted = await _delete_old_candidates(client, channel, recent)
+        deleted = []
+        for group in by_group.values():
+            deleted.extend(int(item.id) for item in group)
+        if deleted:
+            await client.delete_messages(channel, sorted(set(deleted)), revoke=True)
         text, entities = _final_caption(LOT)
         with tempfile.TemporaryDirectory(prefix="fb-living-pool-1210-") as directory:
             paths = []
