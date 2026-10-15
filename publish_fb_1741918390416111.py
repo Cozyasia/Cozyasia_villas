@@ -19,9 +19,9 @@ import publication_safety
 log = logging.getLogger("publish-fb-1741918390416111")
 SOURCE_ID = "facebook_marketplace_1741918390416111"
 SOURCE_URL = "https://www.facebook.com/marketplace/item/1741918390416111/"
-CHANNEL = "arenda_vill_samui"
+CHANNEL = "samuirental"
 SMALL_CHANNEL_URL = "https://t.me/arenda_vill_samui"
-MAP_URL = "https://www.google.com/maps/search/?api=1&query=The+Seasons+Bangrak+Sanam+Bin+Koh+Samui"
+MAP_URL = "https://maps.app.goo.gl/K3ojMKSwZ4zx8HFr8"
 
 PHOTO_URLS = (
     "https://scontent-dfw5-2.xx.fbcdn.net/v/t39.30808-6/823829399_1791222572190300_8329224611902979449_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1536&ctp=s960x960&_nc_cat=107&ccb=1-7&_nc_sid=454cf4&_nc_ohc=gbRdw0I3JL8Q7kNvwET67eJ&_nc_oc=AdqW0FMBdqbddwQUMoES-3TY-t02vO3m0L-fup5uWy5N0R5yGIpSN30XqyMi_FNFqLftRS-b6KLCizn3XFeR83qz&_nc_zt=23&_nc_ht=scontent-dfw5-2.xx&_nc_gid=CyCmTL0v0Og2FStT4FHkHQ&_nc_ss=7c2a8&oh=00_AQOiJvAH3Cyz9SAzSTHgfRZMnObxNR8--88YoMXBSSVEOg&oe=6ACE93CA",
@@ -59,7 +59,7 @@ def _caption_html(lot: str) -> str:
 
 💰 <b>УСЛОВИЯ АРЕНДЫ</b>
 💵 Цена: 50 000 THB/мес — аренда от 6 месяцев
-🤝 Комиссия Cozy Asia: 5 000 THB включена в цену
+🤝 Комиссия Cozy Asia: 4 000 THB
 🔐 Депозит: уточняется
 📅 Доступность: свободен сейчас
 ⚡ Электричество: по государственному тарифу
@@ -138,7 +138,7 @@ async def run() -> dict:
         if publication_safety.lot_from_message(verify) != lot:
             raise RuntimeError("Read-back lot mismatch")
         publication_safety.validate_premium_caption(verify.message, verify.entities, lot)
-        for signature in ("Банграк", "50 000", "5 000", "6 месяцев", SMALL_CHANNEL_URL):
+        for signature in ("Банграк", "50 000", "4 000", "6 месяцев", SMALL_CHANNEL_URL):
             if signature not in (verify.message or ""):
                 raise RuntimeError(f"Read-back listing signature missing: {signature}")
         result = {"channel": CHANNEL, "lot": lot, "message_id": int(caption_msg.id), "result": "published", "photos": len(photos), "source": SOURCE_ID}
