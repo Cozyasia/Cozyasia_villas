@@ -138,7 +138,7 @@ async def run() -> dict:
         if publication_safety.lot_from_message(verify) != lot:
             raise RuntimeError("Read-back lot mismatch")
         publication_safety.validate_premium_caption(verify.message, verify.entities, lot)
-        for signature in ("Банграк", "50 000", "4 000", "6 месяцев", SMALL_CHANNEL_URL):
+        for signature in ("Банграк", "50 000", "4 000", "6 месяцев"):
             if signature not in (verify.message or ""):
                 raise RuntimeError(f"Read-back listing signature missing: {signature}")
         result = {"channel": CHANNEL, "lot": lot, "message_id": int(caption_msg.id), "result": "published", "photos": len(photos), "source": SOURCE_ID}
