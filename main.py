@@ -28,6 +28,10 @@ def _cleanup_living_pool_duplicate_mode() -> bool:
     return os.getenv("CLEANUP_FB_LIVING_POOL_DUPLICATE_20261015", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _repair_living_pool_1210_mode() -> bool:
+    return os.getenv("REPAIR_FB_LIVING_POOL_1210_20261015", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _aom_bophut_reorder_mode() -> bool:
     return os.getenv("REORDER_AOM_BOPHUT_PHOTOS_20261006", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -95,6 +99,9 @@ elif __name__ == "__main__" and _fb_living_pool_mode():
 elif __name__ == "__main__" and _cleanup_living_pool_duplicate_mode():
     import cleanup_fb_living_pool_duplicate_20261015 as _cleanup_living_pool
     _cleanup_living_pool.run_service_mode()
+elif __name__ == "__main__" and _repair_living_pool_1210_mode():
+    import repair_fb_living_pool_1210_20261015 as _repair_living_pool_1210
+    _repair_living_pool_1210.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_reorder_mode():
     import reorder_aom_bophut_photos_20261006 as _aom_bophut_reorder
     _aom_bophut_reorder.run_service_mode()
@@ -164,3 +171,4 @@ else:
         _disable_accidental_startup_publishers()
         _run_drive_permission_probe_if_requested()
         _entry.main()
+
