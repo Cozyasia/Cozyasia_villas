@@ -22,6 +22,7 @@ from publish_fb_living_pool_villas_20261015 import _final_caption
 
 CHANNEL = "samuirental"
 LOT = "1210"
+LEGACY_SPLIT_RANGE = range(5184, 5194)
 # Ten Facebook CDN URLs from the source post/gallery.  The job is one-shot, so
 # downloading at run time avoids adding private source files to the repository.
 PHOTO_URLS = (
@@ -100,6 +101,28 @@ async def _delete_old_candidates(client, channel, messages: list) -> list[int]:
     return ordered
 
 
+async def _delete_legacy_split_media(client, channel, keep_grouped_id: int) -> list[int]:
+    """Remove the known 1210 split-album media items left without captions."""
+    legacy = await client.get_messages(channel, ids=list(LEGACY_SPLIT_RANGE))
+    legacy = legacy if isinstance(legacy, list) else [legacy]
+    ids = {
+        int(item.id)
+        for item in legacy
+        if item
+        and getattr(item, "media", None)
+        and int(getattr(item, "grouped_id", 0) or 0)
+        and int(getattr(item, "grouped_id", 0) or 0) != int(keep_grouped_id or 0)
+    }
+    if len(ids) < 3:
+        return []
+    await client.delete_messages(channel, sorted(ids), revoke=True)
+    remaining = await client.get_messages(channel, ids=sorted(ids))
+    remaining = remaining if isinstance(remaining, list) else [remaining]
+    if any(item for item in remaining if item):
+        raise RuntimeError(f"Could not delete legacy split media: {sorted(ids)}")
+    return sorted(ids)
+
+
 async def run() -> dict:
     if len(PHOTO_URLS) != 10:
         raise RuntimeError(f"Expected exactly 10 photo URLs, found {len(PHOTO_URLS)}")
@@ -117,6 +140,7 @@ async def run() -> dict:
             old = [message for message in recent if _is_candidate(message) and int(message.id) not in keep_ids]
             deleted = await _delete_old_candidates(client, channel, old)
             caption = next(item for item in valid[0] if _text(item))
+            deleted += await _delete_legacy_split_media(client, channel, int(getattr(caption, "grouped_id", 0) or 0))
             result = {
                 "channel": CHANNEL,
                 "lot": LOT,
@@ -157,6 +181,7 @@ async def run() -> dict:
         album.sort(key=lambda item: int(item.id))
         if not gid or len(album) != 10 or not _valid_album(album):
             raise RuntimeError(f"Read-back album integrity failed: grouped_id={gid}, count={len(album)}")
+        deleted += await _delete_legacy_split_media(client, channel, gid)
         verify = next(item for item in album if _text(item))
         publication_safety.validate_premium_caption(verify.message, verify.entities, LOT)
         result = {
