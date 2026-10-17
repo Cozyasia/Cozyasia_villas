@@ -11,7 +11,7 @@ def clean(text):
     text = re.sub(r"<a\b[^>]*>(.*?)</a>", r"\1", text, flags=re.I | re.S)
     text = "\n".join(line for line in text.splitlines() if not SOURCE.match(html.unescape(re.sub(r"<[^>]+>", "", line))))
     text = URL.sub("", text)
-    if THAI.search(text):
+    if THAI.search(text) or re.search(r"\b(?:Police Station|Immigration Office|District Office|Provincial Police)\b", text, re.I):
         from openai import OpenAI
         response = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")).chat.completions.create(
             model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
@@ -19,6 +19,7 @@ def clean(text):
             messages=[{"role": "user", "content": "Переведи все тайские фрагменты на английский с русским переводом в скобках. Остальной русский текст сохрани. Не добавляй фактов, ссылок или источников. Сохрани HTML b/i и хэштеги. Верни только текст.\n" + text}],
         )
         text = (response.choices[0].message.content or "").strip()
+        text = "\n".join(line for line in text.splitlines() if not SOURCE.match(html.unescape(re.sub(r"<[^>]+>", "", line))))
         text = URL.sub("", text)
     if THAI.search(text) or URL.search(text) or not text:
         raise ValueError("Samui News: publication contains unsupported script, URL or empty text")
