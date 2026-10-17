@@ -189,7 +189,8 @@ def apply(news, source_patch, mt, catalog):
         kept = [item for item in items if is_editorial_item(item)]
         if not kept:
             raise RuntimeError("Editorial guard rejected all Samui News candidates")
-        return original_compose(kept, slot)
+        from samui_news_publication_policy import clean
+        return clean(original_compose(kept, slot))
 
     news._fetch_candidates = strict_fetch
     news._compose = strict_compose

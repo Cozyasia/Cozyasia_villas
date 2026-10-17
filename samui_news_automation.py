@@ -487,13 +487,14 @@ def _fallback_post_image(title, subtitle=""):
     draw.ellipse((1010, 70, 1200, 260), fill="#109bd1", outline="#f4c84a", width=8)
     draw.text((1105, 165), "SN", font=_font(62, bold=True), anchor="mm", fill="white")
 
-    clean_title = _strip(title) or "Главное на Самуи"
+    from samui_news_publication_policy import clean
+    clean_title = _strip(clean(title)) or "Главное на Самуи"
     y = 225
     for line in _wrap_lines(draw, clean_title.upper(), title_font, 1000, max_lines=4):
         draw.text((76, y), line, font=title_font, fill="white")
         y += 73
 
-    clean_subtitle = _strip(subtitle)
+    clean_subtitle = _strip(clean(subtitle))
     if clean_subtitle:
         y += 20
         for line in _wrap_lines(draw, clean_subtitle, body_font, 1020, max_lines=3):
@@ -527,6 +528,8 @@ def _story_image(title, subtitle):
             (0, y, 1080, y),
             fill=(int(7 + 8 * t), int(27 + 83 * t), int(53 + 100 * t)),
         )
+    from samui_news_publication_policy import clean
+    title, subtitle = clean(title), clean(subtitle)
     bold = _font(82, bold=True)
     body = _font(48)
     small = _font(38, bold=True)
