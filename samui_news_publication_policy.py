@@ -22,6 +22,6 @@ def clean(text):
         text = (response.choices[0].message.content or "").strip()
         text = "\n".join(line for line in text.splitlines() if not SOURCE.match(html.unescape(re.sub(r"<[^>]+>", "", line))))
         text = URL.sub("", text)
-    if THAI.search(text) or URL.search(text) or not text:
+    if THAI.search(text) or URL.search(text) or not text or len(re.sub(r"<[^>]+>", "", text)) > 900:
         raise ValueError("Samui News: publication contains unsupported script, URL or empty text")
     return text
