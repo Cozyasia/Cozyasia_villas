@@ -84,7 +84,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _fb_1548741747291928_mode():
+if __name__ == "__main__" and os.getenv("REPAIR_SAMUI_NEWS_130", "0") == "1":
+    import repair_samui_news_130
+    repair_samui_news_130.run_service_mode()
+elif __name__ == "__main__" and _fb_1548741747291928_mode():
     import publish_fb_1548741747291928 as _fb_1548741747291928
     _fb_1548741747291928.run_service_mode()
 elif __name__ == "__main__" and _fb_3525763387738681_mode():
