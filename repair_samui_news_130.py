@@ -16,7 +16,7 @@ CAPTION = ("🚨 <b>Полицейская погоня в Сураттхани:
 "#Сураттхани #Таиланд #Полиция")
 
 async def repair():
-    catalog = cozy_catalog.CozyCatalog()
+    catalog = cozy_catalog
     client = await mtproto_user_client._new_client(catalog)
     if client is None:
         raise RuntimeError("MTProto authorization unavailable")
