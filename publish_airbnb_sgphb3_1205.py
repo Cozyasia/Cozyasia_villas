@@ -72,45 +72,9 @@ def enabled() -> bool:
     return os.getenv("PUBLISH_AIRBNB_SGPHB3_1205", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _drive_session():
-    raw = os.getenv("GOOGLE_CREDS_JSON", "").strip()
-    if not raw:
-        raise RuntimeError("GOOGLE_CREDS_JSON is missing")
-    from google.oauth2.service_account import Credentials
-    from google.auth.transport.requests import AuthorizedSession
-    creds = Credentials.from_service_account_info(
-        json.loads(raw),
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
-    )
-    return AuthorizedSession(creds)
-
-
 def _materialize_package() -> list[Path]:
-    work = Path("/tmp/cozy_airbnb_sgphb3_1205")
-    if work.exists():
-        shutil.rmtree(work)
-    work.mkdir(parents=True)
-    archive = work / "photos.zip"
-    package = work / "package"
-    package.mkdir()
-    response = _drive_session().get(
-        f"https://www.googleapis.com/drive/v3/files/{PHOTO_ZIP_FILE_ID}",
-        params={"alt": "media", "supportsAllDrives": "true"},
-        timeout=120,
-    )
-    response.raise_for_status()
-    archive.write_bytes(response.content)
-    with zipfile.ZipFile(archive, "r") as zf:
-        zf.extractall(package)
-    manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
-    if list(manifest.get("photos") or []) != PHOTO_NAMES:
-        raise RuntimeError(f"Unexpected photo manifest: {manifest.get('photos')}")
-    photos = [package / "photos" / name for name in PHOTO_NAMES]
-    missing = [str(path) for path in photos if not path.is_file()]
-    if missing:
-        raise RuntimeError(f"Missing publication assets: {missing}")
-    return photos
-
+    from airbnb_sgphb3_assets import materialize
+    return materialize()
 
 def _final_caption(lot: str):
     import mtproto_user_client
