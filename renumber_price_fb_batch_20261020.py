@@ -92,13 +92,18 @@ async def _run_telegram() -> dict[str, Any]:
             updated_html = _replace_lot(source_html, old_lot, new_lot)
             updated_html = _replace_prices(updated_html, client_price)
             text, entities = telethon_html.parse(updated_html)
-            await client.edit_message(
-                channel,
-                message_id,
-                text=text,
-                formatting_entities=entities,
-                link_preview=False,
-            )
+            try:
+                await client.edit_message(
+                    channel,
+                    message_id,
+                    text=text,
+                    formatting_entities=entities,
+                    link_preview=False,
+                )
+            except Exception as exc:
+                # Idempotent reruns are expected after a partial deploy.
+                if exc.__class__.__name__ != "MessageNotModifiedError":
+                    raise
             check = await client.get_messages(channel, ids=message_id)
             check_html = _caption_html(check)
             if new_lot not in check_html or f"{client_price:,} THB/мес." not in check_html:
