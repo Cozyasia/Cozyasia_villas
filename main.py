@@ -102,7 +102,7 @@ elif __name__ == "__main__" and _fb_living_pool_mode():
 elif __name__ == "__main__" and _cleanup_living_pool_duplicate_mode():
     import cleanup_fb_living_pool_duplicate_20261015 as _cleanup_living_pool
     _cleanup_living_pool.run_service_mode()
-elif __name__ == "__main__" and _repair_living_pool_1210_mode():
+elif __name__ == "__main__" and _repair_latest_premium_mode():\n    import repair_latest_premium as _repair_latest_premium\n    _repair_latest_premium.run_service_mode()\nelif __name__ == "__main__" and _repair_living_pool_1210_mode():
     import repair_fb_living_pool_1210_20261015 as _repair_living_pool_1210
     _repair_living_pool_1210.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_reorder_mode():
