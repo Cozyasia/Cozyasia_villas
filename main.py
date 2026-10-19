@@ -64,6 +64,10 @@ def _choengmon_1205_mode() -> bool:
     return os.getenv("PUBLISH_CHOENGMON_1205", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _airbnb_sgphb3_1205_mode() -> bool:
+    return os.getenv("PUBLISH_AIRBNB_SGPHB3_1205", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _website_media_backfill_mode() -> bool:
     return os.getenv("BACKFILL_WEBSITE_MEDIA_20260929", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -133,6 +137,9 @@ elif __name__ == "__main__" and _bangrak_garden_mode():
 elif __name__ == "__main__" and _montra_mode():
     import publish_montra_20261005 as _montra
     _montra.run_service_mode()
+elif __name__ == "__main__" and _airbnb_sgphb3_1205_mode():
+    import publish_airbnb_sgphb3_1205 as _airbnb_sgphb3
+    _airbnb_sgphb3.run_service_mode()
 elif __name__ == "__main__" and _choengmon_1205_mode():
     import publish_choengmon_1205 as _choengmon
     _choengmon.run_service_mode()
