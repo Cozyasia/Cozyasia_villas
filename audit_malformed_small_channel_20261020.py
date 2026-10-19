@@ -6,6 +6,7 @@ import mtproto_user_client
 import cozy_catalog
 
 CHANNEL = "arenda_vill_samui"
+CURRENT_MESSAGE_IDS = tuple(range(1511, 1611))
 LOT_RE = re.compile(r"\bЛОТ\s+V(?:0?[1-9]|1[01])\b", re.I)
 
 def _is_bad(msg) -> bool:
@@ -42,8 +43,23 @@ async def inspect(delete: bool = False) -> dict:
 
 def run_service_mode():
     delete = os.getenv("CLEANUP_MALFORMED_FB_VILLA_20261020", "0").strip().lower() in {"1","true","yes","on"}
-    result = asyncio.run(inspect(delete=delete))
+    current = os.getenv("DELETE_CURRENT_FB_VILLA_20261020", "0").strip().lower() in {"1","true","yes","on"}
+    if current:
+        result = asyncio.run(delete_current())
+    else:
+        result = asyncio.run(inspect(delete=delete))
     print("MALFORMED_FB_VILLA_AUDIT=" + json.dumps(result, ensure_ascii=False), flush=True)
+
+async def delete_current() -> dict:
+    client = await mtproto_user_client._new_client(cozy_catalog)
+    if not client:
+        raise RuntimeError("MTProto session is not authorized")
+    try:
+        channel = await client.get_entity(f"@{CHANNEL}")
+        await client.delete_messages(channel, list(CURRENT_MESSAGE_IDS))
+        return {"channel": CHANNEL, "deleted_message_ids": list(CURRENT_MESSAGE_IDS), "delete": True}
+    finally:
+        await client.disconnect()
 
 if __name__ == "__main__":
     run_service_mode()
