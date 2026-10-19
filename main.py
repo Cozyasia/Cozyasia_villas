@@ -8,6 +8,11 @@ from __future__ import annotations
 import os
 
 
+
+def _fb_villa_batch_delete_mode() -> bool:
+    return os.getenv("DELETE_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _fb_villa_batch_mode() -> bool:
     return os.getenv("PUBLISH_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -103,6 +108,9 @@ def _drive_link_edit_mode() -> bool:
 if __name__ == "__main__" and _fb_villa_manifest_receiver_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_manifest_receiver()
+elif __name__ == "__main__" and _fb_villa_batch_delete_mode():
+    import fb_villa_batch_20261020 as _fb_villa_batch
+    _fb_villa_batch.run_delete_mode()
 elif __name__ == "__main__" and _fb_villa_batch_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_service_mode()
