@@ -50,17 +50,13 @@ async def run() -> dict:
             raise RuntimeError("No recent media listing with a lot number found")
         msg = max(candidates, key=lambda m: int(m.id))
         lot = publication_safety.lot_from_message(msg)
-        from telethon.extensions import html as telethon_html
-        old_html = telethon_html.unparse(
+        new_text, new_entities, changed = mtproto_user_client.upgrade_text(
             str(getattr(msg, "message", None) or ""),
             list(getattr(msg, "entities", None) or []),
+            lot,
         )
-        new_html = _replace_header(old_html, lot)
-        new_html = _replace_cta(new_html)
-        new_text, new_entities = telethon_html.parse(new_html)
-        new_text, new_entities, changed = mtproto_user_client.upgrade_text(new_text, new_entities, lot)
         if not changed:
-            raise RuntimeError("Premium conversion produced no custom emoji entities")
+            raise RuntimeError("Latest post is not in the expected V7 template; no safe edit made")
         publication_safety.validate_premium_caption(new_text, new_entities, lot)
         try:
             await client.edit_message(
