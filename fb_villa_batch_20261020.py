@@ -73,10 +73,10 @@ def validate_manifest(entries: Iterable[ListingSpec]) -> list[ListingSpec]:
             raise ValueError(f"{item.lot_id} must have exactly 4 bedrooms")
         if item.price_thb <= 0:
             raise ValueError(f"{item.lot_id} price must be positive")
+        if len(item.photo_paths) > MAX_PHOTOS or len(item.photo_urls) > MAX_PHOTOS:
+            raise ValueError(f"{item.lot_id} has at most 10 photos")
         if item.photo_urls and len(item.photo_urls) != MAX_PHOTOS:
             raise ValueError(f"{item.lot_id} requires exactly 10 distinct photo URLs")
-        if item.photo_paths and len(item.photo_paths) != MAX_PHOTOS:
-            raise ValueError(f"{item.lot_id} requires exactly 10 distinct photo files")
         photo_keys = item.photo_urls or item.photo_paths
         if len(set(photo_keys)) != len(photo_keys):
             raise ValueError(f"{item.lot_id} contains duplicate photos; refusing publication")
@@ -89,8 +89,8 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
     lot = lot_id or item.lot_id
     safe_title = html.escape(item.title)
     safe_district = html.escape(item.district)
-    safe_terms = html.escape(item.price_terms)
-    safe_notes = html.escape(item.notes or "Details and final holiday-season total to be confirmed.")
+    safe_terms = html.escape(item.price_terms[:150])
+    safe_notes = html.escape((item.notes or "Details and final holiday-season total to be confirmed.")[:120])
     source_id = html.escape(_source_id(item.source_url))
     rent_url = f"https://t.me/{BOT}?start=rent_{html.escape(lot)}"
     search_url = f"https://t.me/{BOT}?start=search"
@@ -104,13 +104,10 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
         f"📅 {DATES} · {NIGHTS} ночей\n"
         f"💰 В объявлении: {item.price_thb:,} THB/мес.\n"
         f"{safe_terms}\n{safe_notes}\n"
-        f"💳 Депозит, электричество, вода, уборка и итоговая цена за новогодний сезон — уточняются.</blockquote>\n\n"
-        f"📍 Район: {safe_district}\n"
+        f"💳 Депозит, коммунальные платежи, уборка и сезонная цена — уточняются.</blockquote>\n\n"
         f"🗺 <a href=\"{map_url}\"><b>ГЕОЛОКАЦИЯ</b></a>\n"
         f"📸 <a href=\"{html.escape(item.source_url, quote=True)}\"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО И ОБЪЯВЛЕНИЕ</b></a>\n"
         f"🌐 <a href=\"{site_url}\"><b>САЙТ COZY ASIA</b></a>\n"
-        f"🔗 Facebook Marketplace #{source_id}\n\n"
-        f"📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>\n"
         f"👉 <a href=\"{rent_url}\"><b>ЖМИ ЗДЕСЬ</b></a> 👈\n\n\n"
         f"Оператор: @cozy_asia\n"
         f"🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href=\"{search_url}\"><b>НАПИСАТЬ БОТУ</b></a> 🤖\n\n"
