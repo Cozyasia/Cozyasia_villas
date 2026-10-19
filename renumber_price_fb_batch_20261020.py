@@ -159,8 +159,9 @@ def _sync_lots(changed: list[dict[str, Any]]) -> dict[str, Any]:
 
 def run_service_mode() -> None:
     changed = asyncio.run(_run_telegram())["changed"]
-    sheet = _sync_lots(changed)
-    print(json.dumps({"ok": True, "channel": CHANNEL, "changed": changed, "sheet": sheet}, ensure_ascii=False), flush=True)
+    # Sheet synchronization is performed separately via the connected Sheets API
+    # after Telegram read-back, avoiding concurrent gspread quota pressure.
+    print(json.dumps({"ok": True, "channel": CHANNEL, "changed": changed}, ensure_ascii=False), flush=True)
 
 
 if __name__ == "__main__":
