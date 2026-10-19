@@ -308,12 +308,16 @@ def run_manifest_receiver() -> None:
                     manifest = json.loads(parse_qs(raw).get("manifest", [""])[0])
                 else:
                     manifest = json.loads(raw)
-                if not isinstance(manifest, dict) or set(manifest) != {item.source_url for item in DEFAULT_LISTINGS}:
-                    raise ValueError("manifest must contain all 11 source URLs")
-                entries = [
-                    ListingSpec(**{**item.__dict__, "photo_urls": tuple(manifest[item.source_url][:MAX_PHOTOS])})
-                    for item in DEFAULT_LISTINGS
-                ]
+                if not isinstance(manifest, dict) or not manifest:
+                    raise ValueError("manifest must contain at least one source URL")
+                known = {item.source_url: item for item in DEFAULT_LISTINGS}
+                if any(url not in known for url in manifest):
+                    raise ValueError("manifest contains an unknown source URL")
+                entries = []
+                for source_url, urls in manifest.items():
+                    if not isinstance(urls, list) or len(urls) != MAX_PHOTOS or len(set(urls)) != MAX_PHOTOS:
+                        raise ValueError(f"{known[source_url].lot_id} must contain 10 distinct photo URLs")
+                    entries.append(ListingSpec(**{**known[source_url].__dict__, "photo_urls": tuple(urls)}))
                 def publish_background():
                     results = asyncio.run(run_batch(entries, dry_run=False, allow_text_only=False))
                     print({"background_results": results}, flush=True)
