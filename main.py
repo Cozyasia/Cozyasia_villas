@@ -28,6 +28,10 @@ def _cleanup_living_pool_duplicate_mode() -> bool:
     return os.getenv("CLEANUP_FB_LIVING_POOL_DUPLICATE_20261015", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _repair_latest_premium_mode() -> bool:
+    return os.getenv("REPAIR_LATEST_PREMIUM", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _repair_living_pool_1210_mode() -> bool:
     return os.getenv("REPAIR_FB_LIVING_POOL_1210_20261015", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -102,7 +106,13 @@ elif __name__ == "__main__" and _fb_living_pool_mode():
 elif __name__ == "__main__" and _cleanup_living_pool_duplicate_mode():
     import cleanup_fb_living_pool_duplicate_20261015 as _cleanup_living_pool
     _cleanup_living_pool.run_service_mode()
-elif __name__ == "__main__" and _repair_latest_premium_mode():\n    import repair_latest_premium as _repair_latest_premium\n    _repair_latest_premium.run_service_mode()\nelif __name__ == "__main__" and _repair_living_pool_1210_mode():
+elif __name__ == "__main__" and _repair_latest_premium_mode():
+    import repair_latest_premium as _repair_latest_premium
+    _repair_latest_premium.run_service_mode()
+    # Continue as a normal web service after the one-shot edit.
+    import main_legacy as _legacy_after_repair
+    _legacy_after_repair.main()
+elif __name__ == "__main__" and _repair_living_pool_1210_mode():
     import repair_fb_living_pool_1210_20261015 as _repair_living_pool_1210
     _repair_living_pool_1210.run_service_mode()
 elif __name__ == "__main__" and _aom_bophut_reorder_mode():
