@@ -16,6 +16,7 @@ from typing import Iterable, Sequence
 
 
 CHANNEL = "arenda_vill_samui"
+BAD_MESSAGE_IDS = tuple(range(1271, 1282))
 BOT = "Cozyasia_villa_bot"
 DATES = "24.12.2026–24.01.2027"
 NIGHTS = 31
@@ -229,6 +230,25 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
             if asyncio.iscoroutine(maybe):
                 await maybe
     return results
+
+
+async def delete_bad_batch() -> list[int]:
+    from mtproto_user_client import _new_client
+    import cozy_catalog
+    client = await _new_client(cozy_catalog)
+    if client is None:
+        raise RuntimeError("MTProto session is not authorized")
+    try:
+        channel = await client.get_entity(f"@{CHANNEL}")
+        await client.delete_messages(channel, list(BAD_MESSAGE_IDS))
+        return list(BAD_MESSAGE_IDS)
+    finally:
+        await client.disconnect()
+
+
+def run_delete_mode() -> None:
+    deleted = asyncio.run(delete_bad_batch())
+    print({"channel": CHANNEL, "deleted_message_ids": deleted})
 
 
 def run_service_mode() -> None:
