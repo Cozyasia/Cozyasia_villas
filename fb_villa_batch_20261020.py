@@ -11,6 +11,8 @@ import asyncio
 import html
 import json
 import os
+import tempfile
+import urllib.request
 from urllib.parse import parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dataclasses import dataclass
@@ -182,7 +184,15 @@ def _photo_media(item: ListingSpec) -> list[str | Path]:
     if item.photo_urls:
         if len(item.photo_urls) != MAX_PHOTOS:
             raise ValueError(f"{item.lot_id} requires exactly 10 photo URLs")
-        return list(item.photo_urls)
+        root = Path(tempfile.mkdtemp(prefix=f"cozy-{item.lot_id.lower()}-"))
+        files: list[Path] = []
+        for index, url in enumerate(item.photo_urls, start=1):
+            target = root / f"{index:02d}.jpg"
+            urllib.request.urlretrieve(url, target)
+            if not target.is_file() or target.stat().st_size < 1000:
+                raise ValueError(f"downloaded photo is invalid: {url[:100]}")
+            files.append(target)
+        return files
     return _photo_files(item)
 
 
