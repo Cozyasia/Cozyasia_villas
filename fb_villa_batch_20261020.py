@@ -92,7 +92,7 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
         f"Источник: Facebook Marketplace #{source_id}\n\n"
         f"<a href=\"{rent_url}\">ЖМИ ЗДЕСЬ</a>\n\n\n"
         f"Оператор: @cozy_asia (Cozy Asia)\n\n"
-        f"<a href=\"{search_url}\">ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ</a>\n\n"
+        f"<a href=\"{search_url}\">НАПИСАТЬ БОТУ</a> — ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ\n\n"
         f"#Самуи #вилла #4спальни #CozyAsia"
     )
     if len(caption) > MAX_CAPTION_LENGTH:
