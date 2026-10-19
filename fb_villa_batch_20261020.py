@@ -12,6 +12,7 @@ import html
 import json
 import os
 import tempfile
+import threading
 import urllib.request
 from urllib.parse import parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -295,8 +296,11 @@ def run_manifest_receiver() -> None:
                     ListingSpec(**{**item.__dict__, "photo_urls": tuple(manifest[item.source_url][:MAX_PHOTOS])})
                     for item in DEFAULT_LISTINGS
                 ]
-                results = asyncio.run(run_batch(entries, dry_run=False, allow_text_only=False))
-                payload = json.dumps({"results": results}, ensure_ascii=False).encode("utf-8")
+                def publish_background():
+                    results = asyncio.run(run_batch(entries, dry_run=False, allow_text_only=False))
+                    print({"background_results": results}, flush=True)
+                threading.Thread(target=publish_background, daemon=True).start()
+                payload = json.dumps({"accepted": True, "lots": len(entries)}, ensure_ascii=False).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(payload)))
