@@ -99,7 +99,7 @@ def _drive_link_edit_mode() -> bool:
 if __name__ == "__main__" and _fb_villa_batch_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_service_mode()
-elif if __name__ == "__main__" and os.getenv("REPAIR_SAMUI_NEWS_130", "0") == "1":
+elif __name__ == "__main__" and os.getenv("REPAIR_SAMUI_NEWS_130", "0") == "1":
     import repair_samui_news_130
     repair_samui_news_130.run_service_mode()
 elif __name__ == "__main__" and _fb_1548741747291928_mode():
