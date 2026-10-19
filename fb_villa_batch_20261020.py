@@ -12,6 +12,7 @@ import hashlib
 import html
 import json
 import os
+import re
 import tempfile
 import threading
 import urllib.request
@@ -91,29 +92,40 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
     safe_district = html.escape(item.district)
     safe_terms = html.escape(item.price_terms[:150])
     safe_notes = html.escape((item.notes or "Details and final holiday-season total to be confirmed.")[:120])
-    source_id = html.escape(_source_id(item.source_url))
     rent_url = f"https://t.me/{BOT}?start=rent_{html.escape(lot)}"
     search_url = f"https://t.me/{BOT}?start=search"
     site_url = "https://cozyasia-villas.onrender.com"
     map_url = "https://www.google.com/maps/search/?api=1&query=" + html.escape(item.district) + "+Koh+Samui"
+    notes_lower = (item.notes or "").lower()
+    bathrooms = "4" if "4 bathroom" in notes_lower else ("3" if "3 bathroom" in notes_lower else "уточняется")
     caption = (
-        f"🏝 <b>ЛОТ №{html.escape(lot)} · {safe_title}</b>\n\n"
+        f"🏡 <b>ЛОТ №{html.escape(lot)} · {safe_title}</b>\n\n"
         f"💬 <b>ОПИСАНИЕ</b>\n"
         f"<blockquote>Приватная вилла на Самуи в районе {safe_district}.\n"
         f"🛏 4 спальни • 🏊 приватный бассейн\n"
         f"📅 {DATES} · {NIGHTS} ночей\n"
         f"💰 В объявлении: {item.price_thb:,} THB/мес.\n"
-        f"{safe_terms}\n{safe_notes}\n"
-        f"💳 Депозит, коммунальные платежи, уборка и сезонная цена — уточняются.</blockquote>\n\n"
+        f"{safe_terms}\n{safe_notes}</blockquote>\n\n"
+        f"📍 Район: {safe_district}\n"
         f"🗺 <a href=\"{map_url}\"><b>ГЕОЛОКАЦИЯ</b></a>\n"
-        f"📸 <a href=\"{html.escape(item.source_url, quote=True)}\"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО И ОБЪЯВЛЕНИЕ</b></a>\n"
-        f"🌐 <a href=\"{site_url}\"><b>САЙТ COZY ASIA</b></a>\n"
+        f"🏠 Тип: вилла\n🛏 Спальни: 4\n🛁 Ванные: {bathrooms}\n🏊 Бассейн: приватный\n"
+        f"🐾 Питомцы: уточняется\n\n"
+        f"💰 <b>УСЛОВИЯ АРЕНДЫ</b>\n"
+        f"💵 Цена: {item.price_thb:,} THB/мес.\n"
+        f"🤝 Комиссия Cozy Asia: уточняется\n"
+        f"🔐 Депозит: уточняется\n"
+        f"📅 Доступность: подтверждается на указанные даты\n"
+        f"⚡ Электричество · 💧 вода · 🧹 уборка: уточняются\n\n"
+        f"📸 <a href=\"{html.escape(item.source_url, quote=True)}\"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО</b></a>\n"
+        f"🌐 <a href=\"{site_url}\"><b>САЙТ COZY ASIA</b></a>\n\n"
+        f"📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>\n"
         f"👉 <a href=\"{rent_url}\"><b>ЖМИ ЗДЕСЬ</b></a> 👈\n\n\n"
         f"Оператор: @cozy_asia\n"
         f"🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href=\"{search_url}\"><b>НАПИСАТЬ БОТУ</b></a> 🤖\n\n"
         f"#АрендаСамуи #ВиллаСамуи #4Спальни #{html.escape(item.district.replace(' ', ''))} #CozyAsia"
     )
-    if len(caption) > MAX_CAPTION_LENGTH:
+    visible_caption = html.unescape(re.sub(r"<[^>]+>", "", caption))
+    if len(visible_caption) > MAX_CAPTION_LENGTH:
         raise ValueError(f"{lot} caption exceeds Telegram limit")
     return caption
 
@@ -242,6 +254,10 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
                 caption_html = render_caption(item)
                 from telethon.extensions import html as telethon_html
                 caption, formatting_entities = telethon_html.parse(caption_html)
+                from mtproto_user_client import upgrade_text
+                caption, formatting_entities, changed = upgrade_text(caption, formatting_entities, item.lot_id)
+                if not changed:
+                    raise RuntimeError(f"{item.lot_id}: premium Cozy Asia template conversion failed")
                 duplicate = await duplicate_checker(
                     client, channel, ["facebook marketplace", _source_id(item.source_url)]
                 )
