@@ -8,6 +8,7 @@ entered through the explicit service-mode flag in main.py.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import json
 import os
@@ -72,8 +73,13 @@ def validate_manifest(entries: Iterable[ListingSpec]) -> list[ListingSpec]:
             raise ValueError(f"{item.lot_id} must have exactly 4 bedrooms")
         if item.price_thb <= 0:
             raise ValueError(f"{item.lot_id} price must be positive")
-        if len(item.photo_paths) > MAX_PHOTOS or len(item.photo_urls) > MAX_PHOTOS:
-            raise ValueError(f"{item.lot_id} has at most 10 photos")
+        if item.photo_urls and len(item.photo_urls) != MAX_PHOTOS:
+            raise ValueError(f"{item.lot_id} requires exactly 10 distinct photo URLs")
+        if item.photo_paths and len(item.photo_paths) != MAX_PHOTOS:
+            raise ValueError(f"{item.lot_id} requires exactly 10 distinct photo files")
+        photo_keys = item.photo_urls or item.photo_paths
+        if len(set(photo_keys)) != len(photo_keys):
+            raise ValueError(f"{item.lot_id} contains duplicate photos; refusing publication")
         seen_lots.add(item.lot_id)
         seen_sources.add(item.source_url)
     return items
@@ -91,21 +97,24 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
     site_url = "https://cozyasia-villas.onrender.com"
     map_url = "https://www.google.com/maps/search/?api=1&query=" + html.escape(item.district) + "+Koh+Samui"
     caption = (
-        f"🏝 <b>ЛОТ {html.escape(lot)} · {safe_title}</b>\n"
-        f"📍 {safe_district}\n\n"
+        f"🏝 <b>ЛОТ №{html.escape(lot)} · {safe_title}</b>\n\n"
         f"💬 <b>ОПИСАНИЕ</b>\n"
-        f"<blockquote>🛏 4 спальни • бассейн • Самуи\n"
+        f"<blockquote>Приватная вилла на Самуи в районе {safe_district}.\n"
+        f"🛏 4 спальни • 🏊 приватный бассейн\n"
         f"📅 {DATES} · {NIGHTS} ночей\n"
         f"💰 В объявлении: {item.price_thb:,} THB/мес.\n"
         f"{safe_terms}\n{safe_notes}\n"
-        f"💳 Депозит, коммунальные платежи, уборка и итог за сезон — уточняются.</blockquote>\n\n"
-        f"📸 <a href=\"{html.escape(item.source_url, quote=True)}\">Все дополнительные фото и исходное объявление</a>\n"
-        f"🌐 <a href=\"{site_url}\">Сайт Cozy Asia</a> · 🗺 <a href=\"{map_url}\">Карта района</a>\n"
+        f"💳 Депозит, электричество, вода, уборка и итоговая цена за новогодний сезон — уточняются.</blockquote>\n\n"
+        f"📍 Район: {safe_district}\n"
+        f"🗺 <a href=\"{map_url}\"><b>ГЕОЛОКАЦИЯ</b></a>\n"
+        f"📸 <a href=\"{html.escape(item.source_url, quote=True)}\"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО И ОБЪЯВЛЕНИЕ</b></a>\n"
+        f"🌐 <a href=\"{site_url}\"><b>САЙТ COZY ASIA</b></a>\n"
         f"🔗 Facebook Marketplace #{source_id}\n\n"
-        f"<a href=\"{rent_url}\"><b>ЖМИ ЗДЕСЬ — ОСТАВИТЬ ЗАЯВКУ</b></a>\n"
-        f"Оператор: @cozy_asia\n\n"
-        f"🔎 <a href=\"{search_url}\"><b>НАПИСАТЬ БОТУ</b></a> — подобрать другие варианты\n\n"
-        f"#Самуи #вилла #4спальни #CozyAsia"
+        f"📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>\n"
+        f"👉 <a href=\"{rent_url}\"><b>ЖМИ ЗДЕСЬ</b></a> 👈\n\n\n"
+        f"Оператор: @cozy_asia\n"
+        f"🔎🏡 ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ — <a href=\"{search_url}\"><b>НАПИСАТЬ БОТУ</b></a> 🤖\n\n"
+        f"#АрендаСамуи #ВиллаСамуи #4Спальни #{html.escape(item.district.replace(' ', ''))} #CozyAsia"
     )
     if len(caption) > MAX_CAPTION_LENGTH:
         raise ValueError(f"{lot} caption exceeds Telegram limit")
@@ -193,6 +202,9 @@ def _photo_media(item: ListingSpec) -> list[str | Path]:
             if not target.is_file() or target.stat().st_size < 1000:
                 raise ValueError(f"downloaded photo is invalid: {url[:100]}")
             files.append(target)
+        digests = [hashlib.sha256(p.read_bytes()).hexdigest() for p in files]
+        if len(set(digests)) != len(digests):
+            raise ValueError(f"{item.lot_id} downloaded duplicate image bytes; refusing publication")
         return files
     return _photo_files(item)
 
@@ -230,7 +242,9 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
                 files = _photo_media(item)
                 if not files and not allow_text_only:
                     raise ValueError("publication requires at least one prepared photo")
-                caption = render_caption(item)
+                caption_html = render_caption(item)
+                from telethon.extensions import html as telethon_html
+                caption, formatting_entities = telethon_html.parse(caption_html)
                 duplicate = await duplicate_checker(
                     client, channel, ["facebook marketplace", _source_id(item.source_url)]
                 )
@@ -238,16 +252,23 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
                     results.append({"lot_id": item.lot_id, "status": "duplicate_skipped", "message_id": getattr(duplicate, "id", None)})
                     continue
                 if files:
-                    sent = await client.send_file(channel, files, caption=caption, album=True)
+                    sent = await client.send_file(channel, files, caption=caption,
+                                                  formatting_entities=formatting_entities,
+                                                  link_preview=False)
                 else:
-                    sent = await client.send_message(channel, caption, link_preview=False)
+                    sent = await client.send_message(channel, caption,
+                                                     formatting_entities=formatting_entities,
+                                                     link_preview=False)
                 message_ids = [getattr(message, "id", None) for message in (sent if isinstance(sent, list) else [sent])]
                 verified = []
                 for message_id in message_ids:
                     verified.append(await client.get_messages(channel, ids=message_id))
                 if not all(verified):
                     raise RuntimeError("Telegram read-back verification failed")
-                results.append({"lot_id": item.lot_id, "status": "published", "message_ids": message_ids})
+                if files and len(message_ids) != MAX_PHOTOS:
+                    raise RuntimeError(f"{item.lot_id}: expected 10 distinct album messages, got {len(message_ids)}")
+                results.append({"lot_id": item.lot_id, "status": "published", "message_ids": message_ids,
+                                "telegram_url": f"https://t.me/{CHANNEL}/{message_ids[0]}"})
             except Exception as exc:
                 results.append({"lot_id": item.lot_id, "status": "failed", "error": str(exc)})
     finally:
@@ -318,27 +339,6 @@ def run_manifest_receiver() -> None:
     server = HTTPServer(("0.0.0.0", int(os.getenv("PORT", "10000"))), Handler)
     print({"receiver": "ready", "channel": CHANNEL}, flush=True)
     server.serve_forever()
-
-
-BAD_MESSAGE_IDS = tuple(range(1271, 1282)) + tuple(range(1291, 1400, 10))
-
-
-async def delete_bad_batch() -> list[int]:
-    from mtproto_user_client import _new_client
-    import cozy_catalog
-    client = await _new_client(cozy_catalog)
-    if client is None:
-        raise RuntimeError("MTProto session is not authorized")
-    try:
-        channel = await client.get_entity(f"@{CHANNEL}")
-        await client.delete_messages(channel, list(BAD_MESSAGE_IDS))
-        return list(BAD_MESSAGE_IDS)
-    finally:
-        await client.disconnect()
-
-
-def run_delete_mode() -> None:
-    print({"channel": CHANNEL, "deleted_message_ids": asyncio.run(delete_bad_batch())}, flush=True)
 
 
 if __name__ == "__main__":
