@@ -10,8 +10,7 @@ import os
 
 
 def _renumber_price_fb_batch_mode() -> bool:
-    # Temporary one-shot maintenance deploy; reverted immediately after read-back.
-    return True
+    return os.getenv("RENUMBER_PRICE_FB_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _fb_villa_batch_delete_mode() -> bool:
