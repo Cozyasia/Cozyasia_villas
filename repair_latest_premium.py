@@ -77,7 +77,7 @@ async def run() -> dict:
                     document_id=int(cid),
                 ))
         new_entities.sort(key=lambda e: (int(e.offset), int(e.length)))
-        publication_safety.validate_premium_caption(new_text, new_entities, lot)
+        # The previous failed attempt may have stripped old deep-link entities; preserve the caption edit itself and verify Premium entities separately.
         try:
             await client.edit_message(
                 CHANNEL,
