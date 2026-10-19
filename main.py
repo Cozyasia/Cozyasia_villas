@@ -8,12 +8,12 @@ from __future__ import annotations
 import os
 
 
-def _fb_villa_batch_delete_mode() -> bool:
-    return os.getenv("DELETE_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
-
-
 def _fb_villa_batch_mode() -> bool:
     return os.getenv("PUBLISH_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _fb_villa_manifest_receiver_mode() -> bool:
+    return os.getenv("FB_VILLA_MANIFEST_RECEIVER_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _fb_1548741747291928_mode() -> bool:
@@ -100,9 +100,9 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _fb_villa_batch_delete_mode():
+if __name__ == "__main__" and _fb_villa_manifest_receiver_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
-    _fb_villa_batch.run_delete_mode()
+    _fb_villa_batch.run_manifest_receiver()
 elif __name__ == "__main__" and _fb_villa_batch_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_service_mode()
@@ -205,4 +205,6 @@ else:
         _disable_accidental_startup_publishers()
         _run_drive_permission_probe_if_requested()
         _entry.main()
+
+
 
