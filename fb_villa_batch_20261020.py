@@ -320,6 +320,27 @@ def run_manifest_receiver() -> None:
     server.serve_forever()
 
 
+BAD_MESSAGE_IDS = tuple(range(1271, 1282)) + tuple(range(1291, 1400, 10))
+
+
+async def delete_bad_batch() -> list[int]:
+    from mtproto_user_client import _new_client
+    import cozy_catalog
+    client = await _new_client(cozy_catalog)
+    if client is None:
+        raise RuntimeError("MTProto session is not authorized")
+    try:
+        channel = await client.get_entity(f"@{CHANNEL}")
+        await client.delete_messages(channel, list(BAD_MESSAGE_IDS))
+        return list(BAD_MESSAGE_IDS)
+    finally:
+        await client.disconnect()
+
+
+def run_delete_mode() -> None:
+    print({"channel": CHANNEL, "deleted_message_ids": asyncio.run(delete_bad_batch())}, flush=True)
+
+
 if __name__ == "__main__":
     run_service_mode()
 
