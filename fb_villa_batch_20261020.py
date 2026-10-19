@@ -91,7 +91,7 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
         f"{safe_notes}</blockquote>\n\n"
         f"Источник: Facebook Marketplace #{source_id}\n\n"
         f"<a href=\"{rent_url}\">ЖМИ ЗДЕСЬ</a>\n\n\n"
-        f"Оператор: @cozy_asia\n\n"
+        f"Оператор: @cozy_asia (Cozy Asia)\n\n"
         f"<a href=\"{search_url}\">ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ</a>\n\n"
         f"#Самуи #вилла #4спальни #CozyAsia"
     )
@@ -178,35 +178,3 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True) -> lis
              "source_url": item.source_url}
             for item in items
         ]
-
-    # Keep all Telegram-specific imports lazy so tests and normal web startup
-    # cannot accidentally authenticate or publish.
-    from mtproto_user_client import get_client
-    from telethon import events  # noqa: F401
-
-    client = get_client()
-    results: list[dict] = []
-    async with client:
-        channel = await client.get_entity(f"@{CHANNEL}")
-        for item in items:
-            try:
-                files = _photo_files(item)
-                if not files:
-                    raise ValueError("publication requires at least one prepared photo")
-                caption = render_caption(item)
-                sent = await client.send_file(channel, files, caption=caption, album=True)
-                message_ids = [getattr(message, "id", None) for message in (sent if isinstance(sent, list) else [sent])]
-                results.append({"lot_id": item.lot_id, "status": "published", "message_ids": message_ids})
-            except Exception as exc:
-                results.append({"lot_id": item.lot_id, "status": "failed", "error": str(exc)})
-    return results
-
-
-def run_service_mode() -> None:
-    dry_run = os.getenv("FB_VILLA_BATCH_DRY_RUN", "1").strip() != "0"
-    results = asyncio.run(run_batch(DEFAULT_LISTINGS, dry_run=dry_run))
-    print({"channel": CHANNEL, "dry_run": dry_run, "results": results})
-
-
-if __name__ == "__main__":
-    run_service_mode()
