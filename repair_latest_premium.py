@@ -58,13 +58,21 @@ async def run() -> dict:
         new_html = _replace_header(old_html, lot)
         new_html = _replace_cta(new_html)
         new_text, new_entities = telethon_html.parse(new_html)
-        await client.edit_message(
-            CHANNEL,
+        new_text, new_entities, changed = mtproto_user_client.upgrade_text(new_text, new_entities, lot)
+        if not changed:
+            raise RuntimeError("Premium conversion produced no custom emoji entities")
+        publication_safety.validate_premium_caption(new_text, new_entities, lot)
+        try:
+            await client.edit_message(
+                CHANNEL,
             int(msg.id),
             new_text,
             formatting_entities=new_entities,
-            link_preview=False,
-        )
+                link_preview=False,
+            )
+        except Exception as exc:
+            if exc.__class__.__name__ != "MessageNotModifiedError":
+                raise
         verify = await client.get_messages(CHANNEL, ids=int(msg.id))
         entities = list(getattr(verify, "entities", None) or [])
         custom_count = sum(1 for e in entities if getattr(e, "custom_emoji_id", None))
