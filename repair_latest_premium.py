@@ -67,6 +67,16 @@ async def run() -> dict:
         if not replacements:
             raise RuntimeError("Latest post has no safely identifiable header/CTA; no edit made")
         new_text, new_entities = _apply_replacements(text, old_entities, replacements)
+        from telethon.tl.types import MessageEntityCustomEmoji
+        for needle, cid in (("💬", premium.DESC_ID), ("👉", premium.RIGHT_ID), ("👈", premium.LEFT_ID)):
+            pos = new_text.find(needle)
+            if pos >= 0 and not any(int(getattr(e, "offset", -1)) == mtproto_user_client._u16_len(new_text[:pos]) and getattr(e, "custom_emoji_id", None) for e in new_entities):
+                new_entities.append(MessageEntityCustomEmoji(
+                    offset=mtproto_user_client._u16_len(new_text[:pos]),
+                    length=mtproto_user_client._u16_len(needle),
+                    document_id=int(cid),
+                ))
+        new_entities.sort(key=lambda e: (int(e.offset), int(e.length)))
         publication_safety.validate_premium_caption(new_text, new_entities, lot)
         try:
             await client.edit_message(
