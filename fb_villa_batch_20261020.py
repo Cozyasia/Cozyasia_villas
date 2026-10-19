@@ -9,14 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
 
 CHANNEL = "arenda_vill_samui"
-BAD_MESSAGE_IDS = tuple(range(1271, 1282))
 BOT = "Cozyasia_villa_bot"
 DATES = "24.12.2026–24.01.2027"
 NIGHTS = 31
@@ -35,6 +36,7 @@ class ListingSpec:
     price_thb: int
     price_terms: str
     photo_paths: tuple[str, ...] = ()
+    photo_urls: tuple[str, ...] = ()
     notes: str = ""
 
 
@@ -66,7 +68,7 @@ def validate_manifest(entries: Iterable[ListingSpec]) -> list[ListingSpec]:
             raise ValueError(f"{item.lot_id} must have exactly 4 bedrooms")
         if item.price_thb <= 0:
             raise ValueError(f"{item.lot_id} price must be positive")
-        if len(item.photo_paths) > MAX_PHOTOS:
+        if len(item.photo_paths) > MAX_PHOTOS or len(item.photo_urls) > MAX_PHOTOS:
             raise ValueError(f"{item.lot_id} has at most 10 photos")
         seen_lots.add(item.lot_id)
         seen_sources.add(item.source_url)
@@ -82,18 +84,23 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
     source_id = html.escape(_source_id(item.source_url))
     rent_url = f"https://t.me/{BOT}?start=rent_{html.escape(lot)}"
     search_url = f"https://t.me/{BOT}?start=search"
+    site_url = "https://cozyasia-villas.onrender.com"
+    map_url = "https://www.google.com/maps/search/?api=1&query=" + html.escape(item.district) + "+Koh+Samui"
     caption = (
-        f"🏝 <b>{safe_title}</b> — {safe_district}\n\n"
-        f"<b>ОПИСАНИЕ</b>\n"
-        f"<blockquote>4 спальни • Самуи • частный бассейн (если указан в объявлении)\n"
-        f"Период: {DATES} ({NIGHTS} ночей)\n"
-        f"Цена в объявлении: {item.price_thb:,} THB/мес.\n"
-        f"{safe_terms}\n"
-        f"{safe_notes}</blockquote>\n\n"
-        f"Источник: Facebook Marketplace #{source_id}\n\n"
-        f"<a href=\"{rent_url}\">ЖМИ ЗДЕСЬ</a>\n\n\n"
-        f"Оператор: @cozy_asia (Cozy Asia)\n\n"
-        f"<a href=\"{search_url}\">НАПИСАТЬ БОТУ</a> — ПОДОБРАТЬ ДРУГИЕ ВАРИАНТЫ\n\n"
+        f"🏝 <b>ЛОТ {html.escape(lot)} · {safe_title}</b>\n"
+        f"📍 {safe_district}\n\n"
+        f"💬 <b>ОПИСАНИЕ</b>\n"
+        f"<blockquote>🛏 4 спальни • бассейн • Самуи\n"
+        f"📅 {DATES} · {NIGHTS} ночей\n"
+        f"💰 В объявлении: {item.price_thb:,} THB/мес.\n"
+        f"{safe_terms}\n{safe_notes}\n"
+        f"💳 Депозит, коммунальные платежи, уборка и итог за сезон — уточняются.</blockquote>\n\n"
+        f"📸 <a href=\"{html.escape(item.source_url, quote=True)}\">Все дополнительные фото и исходное объявление</a>\n"
+        f"🌐 <a href=\"{site_url}\">Сайт Cozy Asia</a> · 🗺 <a href=\"{map_url}\">Карта района</a>\n"
+        f"🔗 Facebook Marketplace #{source_id}\n\n"
+        f"<a href=\"{rent_url}\"><b>ЖМИ ЗДЕСЬ — ОСТАВИТЬ ЗАЯВКУ</b></a>\n"
+        f"Оператор: @cozy_asia\n\n"
+        f"🔎 <a href=\"{search_url}\"><b>НАПИСАТЬ БОТУ</b></a> — подобрать другие варианты\n\n"
         f"#Самуи #вилла #4спальни #CozyAsia"
     )
     if len(caption) > MAX_CAPTION_LENGTH:
@@ -170,6 +177,14 @@ def _photo_files(item: ListingSpec) -> list[Path]:
     return files
 
 
+def _photo_media(item: ListingSpec) -> list[str | Path]:
+    if item.photo_urls:
+        if len(item.photo_urls) != MAX_PHOTOS:
+            raise ValueError(f"{item.lot_id} requires exactly 10 photo URLs")
+        return list(item.photo_urls)
+    return _photo_files(item)
+
+
 async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, client_factory=None, duplicate_checker=None, allow_text_only: bool = False) -> list[dict]:
     items = validate_manifest(entries)
     if dry_run:
@@ -200,7 +215,7 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
         channel = await client.get_entity(f"@{CHANNEL}")
         for item in items:
             try:
-                files = _photo_files(item)
+                files = _photo_media(item)
                 if not files and not allow_text_only:
                     raise ValueError("publication requires at least one prepared photo")
                 caption = render_caption(item)
@@ -232,25 +247,6 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
     return results
 
 
-async def delete_bad_batch() -> list[int]:
-    from mtproto_user_client import _new_client
-    import cozy_catalog
-    client = await _new_client(cozy_catalog)
-    if client is None:
-        raise RuntimeError("MTProto session is not authorized")
-    try:
-        channel = await client.get_entity(f"@{CHANNEL}")
-        await client.delete_messages(channel, list(BAD_MESSAGE_IDS))
-        return list(BAD_MESSAGE_IDS)
-    finally:
-        await client.disconnect()
-
-
-def run_delete_mode() -> None:
-    deleted = asyncio.run(delete_bad_batch())
-    print({"channel": CHANNEL, "deleted_message_ids": deleted})
-
-
 def run_service_mode() -> None:
     dry_run = os.getenv("FB_VILLA_BATCH_DRY_RUN", "1").strip() != "0"
     text_only = os.getenv("FB_VILLA_BATCH_TEXT_ONLY", "0").strip().lower() in {"1", "true", "yes", "on"}
@@ -258,6 +254,44 @@ def run_service_mode() -> None:
     print({"channel": CHANNEL, "dry_run": dry_run, "results": results})
 
 
+def run_manifest_receiver() -> None:
+    """Temporary authenticated-by-deployment receiver for the browser photo manifest."""
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            if self.path != "/publish-photo-manifest":
+                self.send_error(404)
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            try:
+                manifest = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(manifest, dict) or set(manifest) != {item.source_url for item in DEFAULT_LISTINGS}:
+                    raise ValueError("manifest must contain all 11 source URLs")
+                entries = [
+                    ListingSpec(**{**item.__dict__, "photo_urls": tuple(manifest[item.source_url][:MAX_PHOTOS])})
+                    for item in DEFAULT_LISTINGS
+                ]
+                results = asyncio.run(run_batch(entries, dry_run=False, allow_text_only=False))
+                payload = json.dumps({"results": results}, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except Exception as exc:
+                payload = json.dumps({"error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+        def log_message(self, *_args):
+            return
+    server = HTTPServer(("0.0.0.0", int(os.getenv("PORT", "10000"))), Handler)
+    print({"receiver": "ready", "channel": CHANNEL}, flush=True)
+    server.serve_forever()
+
+
 if __name__ == "__main__":
     run_service_mode()
+
 
