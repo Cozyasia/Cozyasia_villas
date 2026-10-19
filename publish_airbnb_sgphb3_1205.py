@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""One-shot publication of Airbnb sgphb3 villa lot 1205."""
+"""One-shot publication of Airbnb sgphb3 villa lot 1220."""
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 
 CHANNEL = "arenda_vill_samui"
-LOT_ID = 1205
+LOT_ID = 1220
 EXPECTED_LOT = str(LOT_ID)
 PHOTO_ZIP_FILE_ID = "1KjjD1SBKqBaeZSnHS-mHsjurOdMWaOgy"
 PHOTO_NAMES = [
