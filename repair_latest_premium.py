@@ -91,7 +91,7 @@ async def run() -> dict:
                 raise
         verify = await client.get_messages(CHANNEL, ids=int(msg.id))
         entities = list(getattr(verify, "entities", None) or [])
-        custom_count = sum(1 for e in entities if getattr(e, "custom_emoji_id", None))
+        custom_count = sum(1 for e in entities if type(e).__name__ == "MessageEntityCustomEmoji" or getattr(e, "document_id", None))
         result = {
             "channel": CHANNEL,
             "message_id": int(msg.id),
