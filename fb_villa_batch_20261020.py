@@ -11,6 +11,7 @@ import asyncio
 import html
 import json
 import os
+from urllib.parse import parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dataclasses import dataclass
 from pathlib import Path
@@ -257,13 +258,27 @@ def run_service_mode() -> None:
 def run_manifest_receiver() -> None:
     """Temporary authenticated-by-deployment receiver for the browser photo manifest."""
     class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            if self.path != "/manifest-form":
+                self.send_error(404)
+                return
+            body = b'''<!doctype html><meta charset="utf-8"><title>Cozy Asia manifest</title><form method="post" action="/publish-photo-manifest"><textarea name="manifest" style="width:95vw;height:70vh"></textarea><br><button>Publish 11 albums</button></form>'''
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         def do_POST(self):  # noqa: N802
             if self.path != "/publish-photo-manifest":
                 self.send_error(404)
                 return
             length = int(self.headers.get("Content-Length", "0"))
             try:
-                manifest = json.loads(self.rfile.read(length).decode("utf-8"))
+                raw = self.rfile.read(length).decode("utf-8")
+                if self.headers.get("Content-Type", "").startswith("application/x-www-form-urlencoded"):
+                    manifest = json.loads(parse_qs(raw).get("manifest", [""])[0])
+                else:
+                    manifest = json.loads(raw)
                 if not isinstance(manifest, dict) or set(manifest) != {item.source_url for item in DEFAULT_LISTINGS}:
                     raise ValueError("manifest must contain all 11 source URLs")
                 entries = [
