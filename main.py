@@ -8,6 +8,10 @@ from __future__ import annotations
 import os
 
 
+def _fb_villa_batch_mode() -> bool:
+    return os.getenv("PUBLISH_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _fb_1548741747291928_mode() -> bool:
     return os.getenv("PUBLISH_FB_1548741747291928", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -92,7 +96,10 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and os.getenv("REPAIR_SAMUI_NEWS_130", "0") == "1":
+if __name__ == "__main__" and _fb_villa_batch_mode():
+    import fb_villa_batch_20261020 as _fb_villa_batch
+    _fb_villa_batch.run_service_mode()
+elif if __name__ == "__main__" and os.getenv("REPAIR_SAMUI_NEWS_130", "0") == "1":
     import repair_samui_news_130
     repair_samui_news_130.run_service_mode()
 elif __name__ == "__main__" and _fb_1548741747291928_mode():
