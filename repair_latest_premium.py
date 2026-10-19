@@ -50,13 +50,23 @@ async def run() -> dict:
             raise RuntimeError("No recent media listing with a lot number found")
         msg = max(candidates, key=lambda m: int(m.id))
         lot = publication_safety.lot_from_message(msg)
-        new_text, new_entities, changed = mtproto_user_client.upgrade_text(
-            str(getattr(msg, "message", None) or ""),
-            list(getattr(msg, "entities", None) or []),
-            lot,
-        )
-        if not changed:
-            raise RuntimeError("Latest post is not in the expected V7 template; no safe edit made")
+        text = str(getattr(msg, "message", None) or "")
+        old_entities = list(getattr(msg, "entities", None) or [])
+        from mtproto_user_client import _premium_lot_parts, _premium_cta_parts, _apply_replacements
+        replacements = []
+        first_nl = text.find("\\n")
+        first_end = first_nl if first_nl >= 0 else len(text)
+        first_line = text[:first_end]
+        if ("ЛОТ" in first_line) or ("🔤" in first_line) or ("1️⃣" in first_line):
+            lot_text, lot_entities = _premium_lot_parts(lot)
+            replacements.append({"start": 0, "end": first_end, "text": lot_text, "entities": lot_entities})
+        cta_match = re.search(r"^(?:📝\\s*)?ОСТАВИТЬ\\s+ЗАЯВКУ\\s*$", text, flags=re.I | re.M)
+        if cta_match:
+            cta_text, cta_entities = _premium_cta_parts()
+            replacements.append({"start": cta_match.start(), "end": cta_match.end(), "text": cta_text, "entities": cta_entities})
+        if not replacements:
+            raise RuntimeError("Latest post has no safely identifiable header/CTA; no edit made")
+        new_text, new_entities = _apply_replacements(text, old_entities, replacements)
         publication_safety.validate_premium_caption(new_text, new_entities, lot)
         try:
             await client.edit_message(
