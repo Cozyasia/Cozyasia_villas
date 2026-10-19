@@ -17,6 +17,10 @@ def _fb_villa_batch_mode() -> bool:
     return os.getenv("PUBLISH_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _cleanup_malformed_fb_villa_mode() -> bool:
+    return os.getenv("CLEANUP_MALFORMED_FB_VILLA_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _fb_villa_manifest_receiver_mode() -> bool:
     return os.getenv("FB_VILLA_MANIFEST_RECEIVER_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
