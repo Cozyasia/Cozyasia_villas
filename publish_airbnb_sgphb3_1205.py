@@ -14,15 +14,10 @@ CHANNEL = "arenda_vill_samui"
 LOT_ID = 1220
 EXPECTED_LOT = str(LOT_ID)
 PHOTO_ZIP_FILE_ID = "1KjjD1SBKqBaeZSnHS-mHsjurOdMWaOgy"
-PHOTO_NAMES = [
-    "01_exterior.jpeg",
-    "02_pool.jpeg",
-    "03_living.jpeg",
-    "04_bedroom.jpeg",
-    "05_kitchen.jpeg",
-]
+PHOTO_NAMES = [f"full_{i:02d}.jpeg" for i in range(1, 8)]
 MAP_URL = "https://www.google.com/maps/search/?api=1&query=Mae+Nam+Koh+Samui"
 AIRBNB_URL = "https://airbnb.com/h/sgphb3"
+DRIVE_URL = "https://drive.google.com/file/d/1lqKvf_e0Rs_xbM8OIXq8RZ_5M9sbkCeQ/view?usp=drivesdk"
 
 
 def _caption_html(lot: str) -> str:
@@ -58,6 +53,7 @@ def _caption_html(lot: str) -> str:
 📅 Доступность: по запросу
 
 📍 <a href="{MAP_URL}"><b>ГЕОЛОКАЦИЯ</b></a>
+📸 <a href="{DRIVE_URL}"><b>ПОЛНЫЙ ФОТОАЛЬБОМ</b></a>
 
 📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
 👉 <a href="{rent_url}"><b>ЖМИ ЗДЕСЬ</b></a> 👈
@@ -74,7 +70,7 @@ def enabled() -> bool:
 
 
 def _materialize_package() -> list[Path]:
-    from airbnb_sgphb3_assets import materialize
+    from airbnb_sgphb3_full_assets import materialize
     return materialize()
 
 def _final_caption(lot: str):
@@ -111,7 +107,8 @@ async def run() -> dict:
         duplicate = await publication_safety.find_duplicate_listing(
             client, channel, ("Мэнам", "155 000", "2 спальнями", "приватным бассейном"), limit=300
         )
-        if duplicate:
+        repair = os.getenv("REPAIR_AIRBNB_SGPHB3_1220", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if duplicate and not repair:
             result = {
                 "enabled": True,
                 "result": "already",
@@ -121,6 +118,18 @@ async def run() -> dict:
             }
             logging.getLogger("publish-airbnb-sgphb3").info("PUBLISH_AIRBNB_SGPHB3_DONE %s", json.dumps(result, ensure_ascii=False))
             return result
+        if duplicate and repair:
+            grouped_id = getattr(duplicate, "grouped_id", None)
+            if not grouped_id:
+                raise RuntimeError("Existing lot 1220 has no album group id")
+            nearby = await client.get_messages(
+                channel, ids=list(range(max(1, int(duplicate.id) - 12), int(duplicate.id) + 13))
+            )
+            old_ids = [int(m.id) for m in nearby if getattr(m, "grouped_id", None) == grouped_id]
+            if not old_ids:
+                raise RuntimeError("Could not resolve existing lot 1220 album messages")
+            await client.delete_messages(channel, old_ids)
+            logging.getLogger("publish-airbnb-sgphb3").info("Deleted old lot 1220 album ids=%s", old_ids)
 
         previous = await publication_safety.latest_numeric_lot(client, channel, limit=300)
         if not previous:
