@@ -169,7 +169,7 @@ def _photo_files(item: ListingSpec) -> list[Path]:
     return files
 
 
-async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True) -> list[dict]:
+async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, client_factory=None, duplicate_checker=None) -> list[dict]:
     items = validate_manifest(entries)
     if dry_run:
         return [
@@ -178,3 +178,62 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True) -> lis
              "source_url": item.source_url}
             for item in items
         ]
+
+    # Keep all Telegram-specific imports lazy so tests and normal web startup
+    # cannot accidentally authenticate or publish.
+    if client_factory is None:
+        from mtproto_user_client import _new_client
+        import cozy_catalog
+        async def client_factory():
+            client = await _new_client(cozy_catalog)
+            if client is None:
+                raise RuntimeError("MTProto session is not authorized")
+            return client
+    if duplicate_checker is None:
+        from publication_safety import find_duplicate_listing
+        duplicate_checker = find_duplicate_listing
+
+    client = await client_factory()
+    results: list[dict] = []
+    try:
+        channel = await client.get_entity(f"@{CHANNEL}")
+        for item in items:
+            try:
+                files = _photo_files(item)
+                if not files:
+                    raise ValueError("publication requires at least one prepared photo")
+                caption = render_caption(item)
+                duplicate = await duplicate_checker(
+                    client, channel, ["facebook marketplace", _source_id(item.source_url)]
+                )
+                if duplicate is not None:
+                    results.append({"lot_id": item.lot_id, "status": "duplicate_skipped", "message_id": getattr(duplicate, "id", None)})
+                    continue
+                sent = await client.send_file(channel, files, caption=caption, album=True)
+                message_ids = [getattr(message, "id", None) for message in (sent if isinstance(sent, list) else [sent])]
+                verified = []
+                for message_id in message_ids:
+                    verified.append(await client.get_messages(channel, ids=message_id))
+                if not all(verified):
+                    raise RuntimeError("Telegram read-back verification failed")
+                results.append({"lot_id": item.lot_id, "status": "published", "message_ids": message_ids})
+            except Exception as exc:
+                results.append({"lot_id": item.lot_id, "status": "failed", "error": str(exc)})
+    finally:
+        disconnect = getattr(client, "disconnect", None)
+        if disconnect is not None:
+            maybe = disconnect()
+            if asyncio.iscoroutine(maybe):
+                await maybe
+    return results
+
+
+def run_service_mode() -> None:
+    dry_run = os.getenv("FB_VILLA_BATCH_DRY_RUN", "1").strip() != "0"
+    results = asyncio.run(run_batch(DEFAULT_LISTINGS, dry_run=dry_run))
+    print({"channel": CHANNEL, "dry_run": dry_run, "results": results})
+
+
+if __name__ == "__main__":
+    run_service_mode()
+
