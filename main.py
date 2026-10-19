@@ -9,6 +9,10 @@ import os
 
 
 
+def _renumber_price_fb_batch_mode() -> bool:
+    return os.getenv("RENUMBER_PRICE_FB_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _fb_villa_batch_delete_mode() -> bool:
     return os.getenv("DELETE_FB_VILLA_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -113,6 +117,9 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+if __name__ == "__main__" and _renumber_price_fb_batch_mode():
+    import renumber_price_fb_batch_20261020 as _renumber_price_fb_batch
+    _renumber_price_fb_batch.run_service_mode()
 if __name__ == "__main__" and _fb_villa_manifest_receiver_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_manifest_receiver()
