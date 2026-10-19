@@ -169,7 +169,7 @@ def _photo_files(item: ListingSpec) -> list[Path]:
     return files
 
 
-async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, client_factory=None, duplicate_checker=None) -> list[dict]:
+async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, client_factory=None, duplicate_checker=None, allow_text_only: bool = False) -> list[dict]:
     items = validate_manifest(entries)
     if dry_run:
         return [
@@ -200,7 +200,7 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
         for item in items:
             try:
                 files = _photo_files(item)
-                if not files:
+                if not files and not allow_text_only:
                     raise ValueError("publication requires at least one prepared photo")
                 caption = render_caption(item)
                 duplicate = await duplicate_checker(
@@ -209,7 +209,10 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
                 if duplicate is not None:
                     results.append({"lot_id": item.lot_id, "status": "duplicate_skipped", "message_id": getattr(duplicate, "id", None)})
                     continue
-                sent = await client.send_file(channel, files, caption=caption, album=True)
+                if files:
+                    sent = await client.send_file(channel, files, caption=caption, album=True)
+                else:
+                    sent = await client.send_message(channel, caption, link_preview=False)
                 message_ids = [getattr(message, "id", None) for message in (sent if isinstance(sent, list) else [sent])]
                 verified = []
                 for message_id in message_ids:
@@ -230,7 +233,8 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
 
 def run_service_mode() -> None:
     dry_run = os.getenv("FB_VILLA_BATCH_DRY_RUN", "1").strip() != "0"
-    results = asyncio.run(run_batch(DEFAULT_LISTINGS, dry_run=dry_run))
+    text_only = os.getenv("FB_VILLA_BATCH_TEXT_ONLY", "0").strip().lower() in {"1", "true", "yes", "on"}
+    results = asyncio.run(run_batch(DEFAULT_LISTINGS, dry_run=dry_run, allow_text_only=text_only))
     print({"channel": CHANNEL, "dry_run": dry_run, "results": results})
 
 
