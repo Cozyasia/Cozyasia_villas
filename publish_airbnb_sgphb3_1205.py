@@ -14,10 +14,10 @@ CHANNEL = "arenda_vill_samui"
 LOT_ID = 1220
 EXPECTED_LOT = str(LOT_ID)
 PHOTO_ZIP_FILE_ID = "1KjjD1SBKqBaeZSnHS-mHsjurOdMWaOgy"
-PHOTO_NAMES = [f"full_{i:02d}.jpeg" for i in range(1, 8)]
+PHOTO_NAMES = [f"all_{i:02d}.jpeg" for i in range(1, 11)]
 MAP_URL = "https://www.google.com/maps/search/?api=1&query=Mae+Nam+Koh+Samui"
 AIRBNB_URL = "https://airbnb.com/h/sgphb3"
-DRIVE_URL = "https://drive.google.com/file/d/1lqKvf_e0Rs_xbM8OIXq8RZ_5M9sbkCeQ/view?usp=drivesdk"
+DRIVE_URL = "https://drive.google.com/file/d/1-6DauIZH8c_0MaozBGkDMEfk1k1sQ94Z/view?usp=drivesdk"
 
 
 def _caption_html(lot: str) -> str:
@@ -70,7 +70,7 @@ def enabled() -> bool:
 
 
 def _materialize_package() -> list[Path]:
-    from airbnb_sgphb3_full_assets import materialize
+    from airbnb_sgphb3_10_assets import materialize
     return materialize()
 
 def _final_caption(lot: str):
@@ -116,6 +116,10 @@ async def run() -> dict:
                 "message_id": int(duplicate.id),
                 "telegram_url": f"https://t.me/{CHANNEL}/{int(duplicate.id)}",
             }
+            logging.getLogger("publish-airbnb-sgphb3").info("PUBLISH_AIRBNB_SGPHB3_DONE %s", json.dumps(result, ensure_ascii=False))
+            return result
+        if duplicate and repair and DRIVE_URL in (getattr(duplicate, "message", None) or ""):
+            result = {"enabled": True, "result": "already", "lot": EXPECTED_LOT, "message_id": int(duplicate.id), "telegram_url": f"https://t.me/{CHANNEL}/{int(duplicate.id)}"}
             logging.getLogger("publish-airbnb-sgphb3").info("PUBLISH_AIRBNB_SGPHB3_DONE %s", json.dumps(result, ensure_ascii=False))
             return result
         if duplicate and repair:
