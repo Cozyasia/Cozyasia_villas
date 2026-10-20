@@ -106,7 +106,7 @@ async def cleanup() -> dict[str, Any]:
             check = await client.get_messages(channel, ids=message_id)
             check_text = str(getattr(check, "message", "") or "")
             if new_header not in check_text or old_header in check_text:
-                raise RuntimeError(f"header read-back failed for {message_id}")
+                raise RuntimeError(f"header read-back failed for {message_id}; raw={check_text[:120]!r}; source={source_html[:160]!r}; updated={updated_html[:160]!r}; checkhtml={_caption_html(check)[:160]!r}")
             edited.append({"message_id": message_id, "old_header": old_header, "new_header": new_header})
 
         if delete_ids:
