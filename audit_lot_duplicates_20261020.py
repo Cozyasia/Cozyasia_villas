@@ -18,7 +18,7 @@ async def inspect():
         async for m in client.iter_messages(channel, limit=500):
             text = str(getattr(m, "message", "") or "").replace("\n", " ")
             hits = LOT_RE.findall(text)
-            if hits:
+            if int(m.id) >= 1650 and int(m.id) <= 1820 and text:
                 rows.append({
                     "id": int(m.id),
                     "date": str(getattr(m, "date", "")),
