@@ -94,7 +94,7 @@ async def cleanup() -> dict[str, Any]:
             # Telegram stores keycap digits as separate custom-emoji HTML entities.
             # Replace only the visible header and preserve all other caption entities.
             token = lambda ch: rf"(?:<tg-emoji[^>]*>{re.escape(ch)}</tg-emoji>|{re.escape(ch)})"
-            old_pattern = "V" + "".join(token(ch) for ch in old_header[1:])
+            old_pattern = "".join(token(ch) for ch in old_header)
             updated_html = re.sub(old_pattern, new_header, source_html, count=1)
             # Plain-text fallback.
             updated_html = updated_html.replace(old_header, new_header).replace(old_header.replace("️⃣", ""), new_header)
