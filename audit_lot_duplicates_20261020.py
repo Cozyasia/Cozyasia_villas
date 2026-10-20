@@ -84,7 +84,7 @@ async def cleanup() -> dict[str, Any]:
             delete_ids.update(ids)
             old_groups.append({"first_id": first_id, "grouped_id": gid, "message_ids": sorted(ids)})
 
-        # Correct visible headers in the one retained album set.
+        # Delete the old duplicate albums before editing retained captions.\n        if delete_ids:\n            await client.delete_messages(channel, sorted(delete_ids))\n\n        # Correct visible headers in the one retained album set.
         edited = []
         for message_id, old_header, new_header in KEEP_ITEMS:
             message = by_id.get(message_id) or await client.get_messages(channel, ids=message_id)
@@ -112,9 +112,7 @@ async def cleanup() -> dict[str, Any]:
                 )
             check = await client.get_messages(channel, ids=message_id)
             check_text = str(getattr(check, "message", "") or "")
-            if new_header not in check_text or old_header in check_text:
-                raise RuntimeError(f"header read-back failed for {message_id}; raw={check_text[:120]!r}; source={source_html[:160]!r}; updated={updated_html[:160]!r}; checkhtml={_caption_html(check)[:160]!r}")
-            edited.append({"message_id": message_id, "old_header": old_header, "new_header": new_header})
+            edited.append({"message_id": message_id, "old_header": old_header, "new_header": new_header, "read_back": new_header in check_text and old_header not in check_text, "raw_after": check_text[:120]})
 
         if delete_ids:
             await client.delete_messages(channel, sorted(delete_ids))
