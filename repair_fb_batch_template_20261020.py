@@ -7,9 +7,9 @@ import html
 import json
 import re
 
-import cozy_catalog
 import mtproto_user_client
 import post_layout_v6_premium as premium
+from fb_villa_batch_20261020 import DEFAULT_LISTINGS
 
 CHANNEL = "arenda_vill_samui"
 BOT = "Cozyasia_villa_bot"
@@ -18,6 +18,7 @@ TARGETS = {
     1711: "1221", 1721: "1222", 1731: "1223", 1741: "1224", 1751: "1225",
     1761: "1226", 1771: "1227", 1781: "1228", 1791: "1229", 1801: "1230",
 }
+ITEM_BY_MID = dict(zip(TARGETS, [x for x in DEFAULT_LISTINGS if x.lot_id != "V10"]))
 
 
 def _esc(value: object, limit: int = 180) -> str:
@@ -95,9 +96,7 @@ def build_caption(row: dict, lot: str) -> str:
 
 
 async def run() -> dict:
-    cozy_catalog.CATALOG_CHANNEL = CHANNEL
-    rows = {str(r.get("telegram_message_id") or ""): r for r in cozy_catalog.load_catalog_rows(True)}
-    client = await mtproto_user_client._new_client(cozy_catalog)
+    client = await mtproto_user_client._new_client(__import__("cozy_catalog"))
     if not client:
         raise RuntimeError("MTProto Premium session is not authorized")
     edited = []
@@ -105,9 +104,24 @@ async def run() -> dict:
         channel = await client.get_entity(f"@{CHANNEL}")
         from telethon.extensions import html as telethon_html
         for mid, lot in TARGETS.items():
-            row = rows.get(str(mid))
-            if not row:
-                raise RuntimeError(f"Lots row not found for Telegram message {mid}")
+            item = ITEM_BY_MID[mid]
+            row = {
+                "район": item.district,
+                "тип": "вилла",
+                "спальни": str(item.bedrooms),
+                "ванные": "уточняется",
+                "бассейн": "yes",
+                "тип_бассейна": "private",
+                "описание": f"{item.title}. Вилла с {item.bedrooms} спальнями и приватным бассейном в районе {item.district}. {item.notes}",
+                "цена_месяц_thb": f"{item.price_thb:,}",
+                "депозит_thb": "уточняется",
+                "доступность": "подтверждается на указанные даты",
+                "электричество": "уточняется",
+                "вода": "уточняется",
+                "до_моря_м": "уточняется",
+                "питомцы": "уточняется",
+                "исходный_текст": item.source_url,
+            }
             message = await client.get_messages(channel, ids=mid)
             if not message:
                 raise RuntimeError(f"Telegram message {mid} not found")
