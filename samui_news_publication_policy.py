@@ -11,7 +11,7 @@ ENGLISH = re.compile(r"\b[A-Za-z]{3,}(?:[ -]+[A-Za-z]{3,})+\b")
 def clean(text):
     text = re.sub(r"<a\b[^>]*>(.*?)</a>", r"\1", text, flags=re.I | re.S)
     text = "\n".join(line for line in text.splitlines() if not SOURCE.match(html.unescape(re.sub(r"<[^>]+>", "", line))))
-    text = URL.sub("", text)
+    text = URL.sub("", text).strip()
     if THAI.search(text) or ENGLISH.search(re.sub(r"<[^>]+>", "", text)):
         from openai import OpenAI
         response = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")).chat.completions.create(
@@ -21,7 +21,7 @@ def clean(text):
         )
         text = (response.choices[0].message.content or "").strip()
         text = "\n".join(line for line in text.splitlines() if not SOURCE.match(html.unescape(re.sub(r"<[^>]+>", "", line))))
-        text = URL.sub("", text)
+        text = URL.sub("", text).strip()
     visible = html.unescape(re.sub(r"<[^>]+>", "", text))
     # Never publish untranslated English headlines or sentences.
     # Short official names and isolated proper nouns are permitted.
