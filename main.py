@@ -33,6 +33,10 @@ def _cleanup_malformed_fb_villa_mode() -> bool:
     return os.getenv("CLEANUP_MALFORMED_FB_VILLA_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _repair_fb_batch_template_mode() -> bool:
+    return os.getenv("REPAIR_FB_BATCH_TEMPLATE_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _fb_villa_manifest_receiver_mode() -> bool:
     return os.getenv("FB_VILLA_MANIFEST_RECEIVER_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -139,6 +143,9 @@ elif __name__ == "__main__" and _cleanup_malformed_fb_villa_mode():
 elif __name__ == "__main__" and _fb_villa_batch_delete_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_delete_mode()
+elif __name__ == "__main__" and _repair_fb_batch_template_mode():
+    import repair_fb_batch_template_20261020 as _repair_fb_batch_template
+    _repair_fb_batch_template.run_service_mode()
 elif __name__ == "__main__" and _fb_villa_batch_mode():
     import fb_villa_batch_20261020 as _fb_villa_batch
     _fb_villa_batch.run_service_mode()
