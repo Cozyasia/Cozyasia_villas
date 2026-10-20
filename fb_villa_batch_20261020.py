@@ -99,13 +99,10 @@ def render_caption(item: ListingSpec, lot_id: str | None = None) -> str:
     notes_lower = (item.notes or "").lower()
     bathrooms = "4" if "4 bathroom" in notes_lower else ("3" if "3 bathroom" in notes_lower else "уточняется")
     caption = (
-        f"🏡 <b>ЛОТ №{html.escape(lot)} · {safe_title}</b>\n\n"
+        f"🏡 <b>ЛОТ №{html.escape(lot)}</b>\n\n"
         f"💬 <b>ОПИСАНИЕ</b>\n"
-        f"<blockquote>Приватная вилла на Самуи в районе {safe_district}.\n"
-        f"🛏 4 спальни • 🏊 приватный бассейн\n"
-        f"📅 {DATES} · {NIGHTS} ночей\n"
-        f"💰 В объявлении: {item.price_thb:,} THB/мес.\n"
-        f"{safe_terms}\n{safe_notes}</blockquote>\n\n"
+        f"<blockquote>{safe_title}. Приватная вилла с 4 спальнями и бассейном в районе {safe_district}. "
+        f"{safe_notes}\n📅 {DATES} · {NIGHTS} ночей</blockquote>\n\n"
         f"📍 Район: {safe_district}\n"
         f"🗺 <a href=\"{map_url}\"><b>ГЕОЛОКАЦИЯ</b></a>\n"
         f"🏠 Тип: вилла\n🛏 Спальни: 4\n🛁 Ванные: {bathrooms}\n🏊 Бассейн: приватный\n"
@@ -278,7 +275,7 @@ async def run_batch(entries: Sequence[ListingSpec], dry_run: bool = True, *, cli
                     verified.append(await client.get_messages(channel, ids=message_id))
                 if not all(verified):
                     raise RuntimeError("Telegram read-back verification failed")
-                if files and len(message_ids) != MAX_PHOTOS:
+                if files and len(files) == MAX_PHOTOS and len(message_ids) != MAX_PHOTOS:
                     raise RuntimeError(f"{item.lot_id}: expected 10 distinct album messages, got {len(message_ids)}")
                 results.append({"lot_id": item.lot_id, "status": "published", "message_ids": message_ids,
                                 "telegram_url": f"https://t.me/{CHANNEL}/{message_ids[0]}"})
