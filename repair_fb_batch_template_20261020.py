@@ -113,12 +113,17 @@ async def run() -> dict:
                 raise RuntimeError(f"Telegram message {mid} not found")
             caption_html = build_caption(row, lot)
             text, entities = telethon_html.parse(caption_html)
-            await client.edit_message(channel, mid, text, formatting_entities=entities, link_preview=False)
+            try:
+                await client.edit_message(channel, mid, text, formatting_entities=entities, link_preview=False)
+            except Exception as exc:
+                if exc.__class__.__name__ != "MessageNotModifiedError":
+                    raise
             check = await client.get_messages(channel, ids=mid)
             check_text = str(getattr(check, "message", "") or "")
-            if not check or lot not in check_text or "ОПИСАНИЕ" not in check_text:
+            custom_count = sum(1 for ent in (getattr(check, "entities", None) or []) if type(ent).__name__ == "MessageEntityCustomEmoji")
+            if not check or "ОПИСАНИЕ" not in check_text or custom_count < 10:
                 raise RuntimeError(f"read-back failed for {mid}/{lot}")
-            edited.append({"message_id": mid, "lot": lot, "caption_length": len(check_text), "url": f"https://t.me/{CHANNEL}/{mid}"})
+            edited.append({"message_id": mid, "lot": lot, "caption_length": len(check_text), "custom_emoji_count": custom_count, "url": f"https://t.me/{CHANNEL}/{mid}"})
             await asyncio.sleep(0.7)
         return {"ok": True, "channel": CHANNEL, "edited": edited}
     finally:
