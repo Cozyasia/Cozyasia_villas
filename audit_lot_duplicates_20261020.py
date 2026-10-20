@@ -98,6 +98,9 @@ async def cleanup() -> dict[str, Any]:
             updated_html = re.sub(old_pattern, new_header, source_html, count=1)
             # Plain-text fallback.
             updated_html = updated_html.replace(old_header, new_header).replace(old_header.replace("️⃣", ""), new_header)
+            if updated_html == source_html:
+                # Fallback for Telegram custom-emoji tags whose exact entity syntax varies.
+                updated_html = re.sub(r"V(?:(?:<[^>]+>[^<]*</[^>]+>)|[^<\\n])*", new_header, source_html, count=1)
             if updated_html != source_html:
                 text, entities = telethon_html.parse(updated_html)
                 await client.edit_message(
