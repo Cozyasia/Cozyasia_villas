@@ -278,7 +278,8 @@ def _record_rejection(state, item, reason):
                 "event_signature:" + signature if signature else "",
             ) if x
         )
-        news._worksheet(catalog).append_row(
+        import samui_news_automation as news_module
+        news_module._worksheet(catalog).append_row(
             [marker, "rejected", reason[:120], "", payload[:4000], stamp],
             value_input_option="RAW",
         )
