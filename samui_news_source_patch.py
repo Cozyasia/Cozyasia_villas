@@ -849,7 +849,7 @@ def apply(news, mt, catalog):
         combined = _dedupe_candidate_list(google + telegram + facebook)
         recent_keys = set()
         for recent_text in _RECENT_CHANNEL_POSTS:
-            marker = re.search(r"message_date=([^\\]\\n]+)", recent_text)
+            marker = re.search(r"message_date=([^\\n\\]]+)", recent_text)
             recent_item = {
                 "title": next((line.strip() for line in recent_text.splitlines() if line.strip()), ""),
                 "text": recent_text,
