@@ -15,7 +15,10 @@ from difflib import SequenceMatcher
 
 import requests
 
+import samui_news_event_dedup as event_dedup
+
 log = logging.getLogger("samui-news-source-patch")
+_RECENT_EVENT_KEYS: set[str] = set()
 
 GOOGLE_QUERIES = (
     # Verified Thai official/regional publishers; index-based discovery needs no API keys.
@@ -199,7 +202,13 @@ def _history_state_factory(news, history_days: int = 14):
         posts = stories = 0
         last_post = None
         used_urls: set[str] = set()
-        cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, history_days))
+        event_keys: set[str] = set()
+        event_signatures: set[str] = set()
+        try:
+            reference = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
+        except Exception:
+            reference = datetime.now(timezone.utc)
+        cutoff = reference - timedelta(days=max(7, history_days))
         try:
             for row in news._worksheet(catalog).get_all_values()[1:]:
                 if not row:
@@ -228,9 +237,14 @@ def _history_state_factory(news, history_days: int = 14):
                     created is not None and created >= cutoff
                 )
                 if in_history and len(row) > 4:
-                    used_urls.update(
-                        x.strip() for x in row[4].splitlines() if x.strip()
-                    )
+                    for value in row[4].splitlines():
+                        value = value.strip()
+                        if value.startswith("event_key:"):
+                            event_keys.add(value[len("event_key:"):])
+                        elif value.startswith("event_signature:"):
+                            event_signatures.add(value[len("event_signature:"):])
+                        elif value.startswith(("http://", "https://")):
+                            used_urls.add(value)
         except Exception:
             log.exception("Could not build extended Samui News history state")
         return {
@@ -238,9 +252,38 @@ def _history_state_factory(news, history_days: int = 14):
             "stories": stories,
             "last_post": last_post,
             "used_urls": used_urls,
+            "event_keys": event_keys,
+            "event_signatures": event_signatures,
         }
 
     return _history_state
+
+
+def _record_rejection(state, item, reason):
+    """Append a machine-readable rejection to the existing state worksheet."""
+    catalog = state.get("_catalog")
+    if catalog is None:
+        return
+    try:
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        url = str(item.get("url") or "").strip()
+        key = str(item.get("event_key") or "")
+        signature = str(item.get("event_signature") or "")[:500]
+        marker = f"reject-{stamp}-{abs(hash((url, reason))) % 1000000}"
+        payload = "\n".join(
+            x for x in (
+                "reason:" + reason,
+                url,
+                "event_key:" + key if key else "",
+                "event_signature:" + signature if signature else "",
+            ) if x
+        )
+        news._worksheet(catalog).append_row(
+            [marker, "rejected", reason[:120], "", payload[:4000], stamp],
+            value_input_option="RAW",
+        )
+    except Exception:
+        log.exception("Could not record Samui News rejection: %s", reason)
 
 
 def _google_candidates() -> list[dict]:
@@ -366,7 +409,10 @@ async def _telegram_candidates(mt, catalog, target_channel: str):
                 if dt and dt < cutoff:
                     break
                 if text:
-                    recent_posts.append(text[:1400])
+                    date_marker = dt.astimezone(timezone.utc).isoformat() if dt else ""
+                    recent_posts.append(
+                        text[:1400] + (f"\n[SamuiNews message_date={date_marker}]" if date_marker else "")
+                    )
         except Exception:
             log.exception(
                 "Could not read recent Samui News posts for semantic deduplication"
@@ -618,14 +664,36 @@ def _llm_novelty(news, items: list[dict], recent_posts: list[str]) -> list[dict]
 def _should_publish_enhanced(
     items, state, now, max_posts=7, min_gap_seconds=5400
 ):
-    fresh = [
-        x
-        for x in items
-        if x.get("url") not in state.get("used_urls", set())
-        and x.get("novelty") != "duplicate"
-    ]
+    # Deterministic identity/freshness checks run before composition and media.
+    # The LLM verdict remains a secondary semantic signal, never the sole gate.
+    known_recent = set(_RECENT_EVENT_KEYS)
+    if known_recent:
+        state = dict(state)
+        state["recent_event_keys"] = known_recent
+    fresh = []
+    seen_signatures = set()
+    for item in items:
+        item["event_key"] = event_dedup.build_event_key(item, now)
+        item["event_signature"] = event_dedup.event_signature(item, now)
+        allowed, reason = event_dedup.dedupe_decision(item, state, now=now)
+        if allowed and item["event_signature"] in seen_signatures:
+            allowed, reason = False, "duplicate:event_in_scan"
+        if allowed:
+            seen_signatures.add(item["event_signature"])
+            fresh.append(item)
+        else:
+            log.info(
+                "Samui News candidate rejected before composition: reason=%s title=%s url=%s",
+                reason,
+                str(item.get("title", ""))[:220],
+                str(item.get("url", ""))[:500],
+            )
+            _record_rejection(state, item, reason)
     if not fresh or state.get("posts", 0) >= max_posts:
-        log.info("Publication gate: fresh=%s posts_today=%s limit=%s", len(fresh), state.get("posts", 0), max_posts)
+        log.info(
+            "Publication gate: fresh=%s posts_today=%s limit=%s",
+            len(fresh), state.get("posts", 0), max_posts
+        )
         return False, []
     last_post = state.get("last_post")
     if last_post and (
@@ -650,6 +718,7 @@ def _should_publish_enhanced(
                 str(item.get("title", ""))[:220],
                 str(item.get("url", ""))[:500],
             )
+            _record_rejection(state, item, "insufficient_importance")
     return publish, ranked[:5] if publish else []
 
 
@@ -748,10 +817,11 @@ def apply(news, mt, catalog):
         return
     news._REGIONAL_SOURCE_PATCH_V1 = True
 
-    history_days = int(os.environ.get("SAMUI_NEWS_HISTORY_DAYS", "14") or 14)
-    max_posts = int(os.environ.get("SAMUI_NEWS_MAX_POSTS_PER_DAY", "7") or 7)
-    min_gap = int(
-        os.environ.get("SAMUI_NEWS_MIN_POST_GAP_SECONDS", "5400") or 5400
+    history_days = max(7, int(os.environ.get("SAMUI_NEWS_HISTORY_DAYS", "14") or 14))
+    max_posts = max(1, int(os.environ.get("SAMUI_NEWS_MAX_POSTS_PER_DAY", "7") or 7))
+    # Never permit a zero interval from an old environment override.
+    min_gap = max(
+        5400, int(os.environ.get("SAMUI_NEWS_MIN_POST_GAP_SECONDS", "5400") or 5400)
     )
 
     news.MAX_POSTS_PER_DAY = max_posts
@@ -781,6 +851,17 @@ def apply(news, mt, catalog):
             _RECENT_CHANNEL_POSTS = recent
         _LAST_TG_SOURCES = sources
         combined = _dedupe_candidate_list(google + telegram + facebook)
+        recent_keys = set()
+        for recent_text in _RECENT_CHANNEL_POSTS:
+            marker = re.search(r"message_date=([^\n\]]+)", recent_text)
+            recent_item = {
+                "title": next((line.strip() for line in recent_text.splitlines() if line.strip()), ""),
+                "text": recent_text,
+                "published": marker.group(1) if marker else "",
+            }
+            recent_keys.add(event_dedup.build_event_key(recent_item, datetime.now(timezone.utc)))
+        global _RECENT_EVENT_KEYS
+        _RECENT_EVENT_KEYS = recent_keys
         novel = _llm_novelty(news, combined, _RECENT_CHANNEL_POSTS)
         log.info(
             "Regional news scan: google=%s telegram=%s facebook=%s public_tg_sources=%s recent_channel_posts=%s novel=%s",
