@@ -31,4 +31,4 @@ jobs:
           tests.test_samui_news_event_dedup
           tests.test_samui_news_source_patch
           tests.test_samui_news_editorial_guard
-          tests.test_samui_news_publication_policy
+          test_samui_news_publication_policy
