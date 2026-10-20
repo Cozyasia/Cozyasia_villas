@@ -80,6 +80,7 @@ class PatchTests(unittest.TestCase):
                 "title": "Koh Tao ferry closed after storm warning",
                 "url": "https://example.com/new",
                 "text": "Koh Tao ferry closed after storm warning",
+                "published": "2026-09-20T12:00:00+00:00",
                 "novelty": "new",
             }
         ]
