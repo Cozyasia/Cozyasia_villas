@@ -31,5 +31,8 @@ async def inspect():
     finally:
         await client.disconnect()
 
-if __name__ == "__main__":
+def run_service_mode():
     print("LOT_AUDIT=" + json.dumps(asyncio.run(inspect()), ensure_ascii=False), flush=True)
+
+if __name__ == "__main__":
+    run_service_mode()
