@@ -725,6 +725,7 @@ def ensure_started(catalog):
                 if now.hour in SCAN_HOURS and scan_key != last_scan_hour:
                     last_scan_hour = scan_key
                     state = _daily_state(catalog, now.strftime("%Y-%m-%d"))
+                    state["_catalog"] = catalog
                     items = _fetch_candidates()
                     publish, selected = _should_publish(items, state, now)
                     if publish:
