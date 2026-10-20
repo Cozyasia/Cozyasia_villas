@@ -646,6 +646,16 @@ async def _publish(catalog, slot, items, state):
             urls.append("event_key:" + str(item["event_key"]))
         if item.get("event_signature"):
             urls.append("event_signature:" + str(item["event_signature"])[:500])
+        if item.get("source_name"):
+            urls.append("source_name:" + str(item["source_name"])[:180])
+        if item.get("published"):
+            urls.append("source_published:" + str(item["published"])[:80])
+        if item.get("event_date"):
+            urls.append("event_date:" + str(item["event_date"])[:80])
+        if item.get("category"):
+            urls.append("category:" + str(item["category"])[:80])
+        if item.get("verification_status"):
+            urls.append("verification_status:" + str(item["verification_status"])[:80])
     client = await mtproto_user_client._new_client(catalog)
     if not client:
         raise RuntimeError("MTProto session is not authorized")

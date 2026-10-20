@@ -676,6 +676,9 @@ def _should_publish_enhanced(
     for item in items:
         item["event_key"] = event_dedup.build_event_key(item, now)
         item["event_signature"] = event_dedup.event_signature(item, now)
+        item["category"] = event_dedup.category_bucket(item)
+        item["event_date"] = str(item.get("event_date") or item.get("published") or "")
+        item["verification_status"] = "source_linked_candidate"
         allowed, reason = event_dedup.dedupe_decision(item, state, now=now)
         if allowed and item["event_signature"] in seen_signatures:
             allowed, reason = False, "duplicate:event_in_scan"
