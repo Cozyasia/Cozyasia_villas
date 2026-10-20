@@ -29,6 +29,9 @@ import manual_edit_guard
 import mtproto_user_client
 import mtproto_2fa_patch
 import samui_news_automation
+import samui_news_source_patch
+import samui_news_editorial_guard
+import samui_news_layout_patch
 import hashtag_reorder_patch
 import publish_fb_1038134945777547
 import correct_fb_1038134945777547
@@ -340,6 +343,24 @@ def _install_catalog_handlers(app):
     log.info("Catalog handlers installed for @%s; hashtag_reorder_mode=%s",cozy_catalog.CATALOG_CHANNEL,HASHTAG_REORDER_MODE)
 
 
+def _apply_samui_news_patches():
+    # Keep the active publisher explicit and ordered: layout -> regional sources
+    # -> strict editorial gate -> scheduler.
+    samui_news_layout_patch.apply(
+        samui_news_automation, mtproto_user_client, cozy_catalog
+    )
+    samui_news_source_patch.apply(
+        samui_news_automation, mtproto_user_client, cozy_catalog
+    )
+    samui_news_editorial_guard.apply(
+        samui_news_automation,
+        samui_news_source_patch,
+        mtproto_user_client,
+        cozy_catalog,
+    )
+    log.info("Samui News production patches wired: layout, sources, dedup, editorial gate")
+
+
 def main():
     legacy._log_openai_env(); legacy._probe_openai(); _log_google_service_account()
     if not HASHTAG_REORDER_MODE:
@@ -390,6 +411,7 @@ def main():
     if replace_lot_1191.enabled():
         threading.Thread(target=_replace_lot_1191_on_startup,name="replace-lot-1191",daemon=True).start()
     publish_fb_1070904912524019.start_once()
+    _apply_samui_news_patches()
     samui_news_automation.ensure_started(cozy_catalog)
     # Publishing is intentionally NEVER run from service startup. A deploy/restart
     # must not be able to create a Telegram post. New publications are prepared,
