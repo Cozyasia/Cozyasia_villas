@@ -14,6 +14,14 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 LOCAL_TZ = timezone(timedelta(hours=7))
 
+_WEATHER_HAZARD_RE = re.compile(
+    r"(?:flood|landslide|mudslide|severe rain|heavy rain|storm warning|"
+    r"dangerous weather|road damage|roads damaged|destroyed|damage|"
+    r"наводнен|затоплен|ополз|ливн|шторм|тайфун|предупрежд|опасн|"
+    r"поврежд|разруш|перекрыт|тропическ|муссон|"
+    r"น้ำท่วม|ดินถล่ม|พายุ|เตือนภัย|อันตราย)",
+    re.I,
+)
 _WEATHER_RE = re.compile(
     r"(?:weather|forecast|rain|storm|flood|landslide|typhoon|monsoon|"
     r"погод|дожд|ливн|шторм|наводнен|ополз|тайфун|муссон|"
@@ -127,6 +135,8 @@ def category_bucket(item: dict | str) -> str:
     text = normalize(item if isinstance(item, str) else " ".join(
         str(item.get(key) or "") for key in ("title", "text")
     ))
+    if _WEATHER_HAZARD_RE.search(text):
+        return "weather_hazard"
     if _WEATHER_RE.search(text):
         return "weather"
     for category, pattern in _CATEGORY_PATTERNS:
@@ -154,6 +164,10 @@ def event_signature(item: dict, now: datetime | None = None) -> str:
     category = category_bucket(item)
     geo = geo_bucket(item)
     day = event_day(item, now)
+    if category == "weather_hazard":
+        # A continuing hazard remains one event across the Asia/Bangkok
+        # calendar boundary. A material official update is handled separately.
+        return f"{category}|{geo}|hazard|hydrometeorological"
     if category == "weather":
         return f"{category}|{geo}|{day}|weather"
     tokens = sorted(_tokens(item))
