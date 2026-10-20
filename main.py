@@ -9,6 +9,14 @@ import os
 
 
 
+def _audit_samui_news_mode() -> bool:
+    return os.getenv("AUDIT_SAMUI_NEWS_30_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _cleanup_samui_news_mode() -> bool:
+    return os.getenv("CLEANUP_SAMUI_NEWS_DUPLICATES_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _renumber_price_fb_batch_mode() -> bool:
     return os.getenv("RENUMBER_PRICE_FB_BATCH_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -125,7 +133,13 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
-if __name__ == "__main__" and _renumber_price_fb_batch_mode():
+if __name__ == "__main__" and _audit_samui_news_mode():
+    import audit_samui_news_20261020 as _audit_samui_news
+    _audit_samui_news.run_service_mode()
+elif __name__ == "__main__" and _cleanup_samui_news_mode():
+    import cleanup_samui_news_duplicates_20261020 as _cleanup_samui_news
+    _cleanup_samui_news.run_service_mode()
+elif __name__ == "__main__" and _renumber_price_fb_batch_mode():
     import renumber_price_fb_batch_20261020 as _renumber_price_fb_batch
     _renumber_price_fb_batch.run_service_mode()
 elif __name__ == "__main__" and _audit_lot_duplicates_mode():
