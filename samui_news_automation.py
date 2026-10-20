@@ -148,7 +148,7 @@ def _daily_state(catalog, day):
                         pass
             elif row_day.startswith(day) and kind == "story":
                 stories += 1
-            if len(row) > 4:
+            if kind in {"post", "story"} and len(row) > 4:
                 for value in row[4].splitlines():
                     value = value.strip()
                     if value.startswith("event_key:"):

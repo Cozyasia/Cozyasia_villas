@@ -236,7 +236,7 @@ def _history_state_factory(news, history_days: int = 14):
                 in_history = is_today or (
                     created is not None and created >= cutoff
                 )
-                if in_history and len(row) > 4:
+                if in_history and kind in {"post", "story"} and len(row) > 4:
                     for value in row[4].splitlines():
                         value = value.strip()
                         if value.startswith("event_key:"):
