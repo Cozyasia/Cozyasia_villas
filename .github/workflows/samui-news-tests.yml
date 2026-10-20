@@ -28,7 +28,7 @@ jobs:
       - name: Run Samui News tests
         run: >
           python -m unittest
-          tests/test_samui_news_event_dedup.py
-          tests/test_samui_news_source_patch.py
-          tests/test_samui_news_editorial_guard.py
-          tests/test_samui_news_publication_policy.py
+          tests.test_samui_news_event_dedup
+          tests.test_samui_news_source_patch
+          tests.test_samui_news_editorial_guard
+          tests.test_samui_news_publication_policy
