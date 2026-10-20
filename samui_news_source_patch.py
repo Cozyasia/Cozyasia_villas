@@ -204,7 +204,11 @@ def _history_state_factory(news, history_days: int = 14):
         used_urls: set[str] = set()
         event_keys: set[str] = set()
         event_signatures: set[str] = set()
-        cutoff = datetime.now(timezone.utc) - timedelta(days=max(7, history_days))
+        try:
+            reference = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
+        except Exception:
+            reference = datetime.now(timezone.utc)
+        cutoff = reference - timedelta(days=max(7, history_days))
         try:
             for row in news._worksheet(catalog).get_all_values()[1:]:
                 if not row:
