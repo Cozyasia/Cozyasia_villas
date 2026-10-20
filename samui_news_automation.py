@@ -124,11 +124,19 @@ def _daily_state(catalog, day):
     posts = stories = 0
     last_post = None
     used_urls = set()
+    event_keys = set()
+    event_signatures = set()
     try:
         for row in _worksheet(catalog).get_all_values()[1:]:
-            if not row or not row[0].startswith(day):
+            if not row:
                 continue
-            if len(row) > 1 and row[1] == "post":
+            row_day = str(row[0] or "")
+            if not row_day.startswith(day) and (len(row) < 5 or not any(
+                str(x).startswith("event_key:") for x in str(row[4]).splitlines()
+            )):
+                continue
+            kind = row[1] if len(row) > 1 else ""
+            if row_day.startswith(day) and kind == "post":
                 posts += 1
                 if len(row) > 5 and row[5]:
                     try:
@@ -138,10 +146,17 @@ def _daily_state(catalog, day):
                         )
                     except Exception:
                         pass
-            elif len(row) > 1 and row[1] == "story":
+            elif row_day.startswith(day) and kind == "story":
                 stories += 1
             if len(row) > 4:
-                used_urls.update(x.strip() for x in row[4].splitlines() if x.strip())
+                for value in row[4].splitlines():
+                    value = value.strip()
+                    if value.startswith("event_key:"):
+                        event_keys.add(value[len("event_key:"):])
+                    elif value.startswith("event_signature:"):
+                        event_signatures.add(value[len("event_signature:"):])
+                    elif value.startswith(("http://", "https://")):
+                        used_urls.add(value)
     except Exception:
         log.exception("Could not build Samui News daily state")
     return {
@@ -149,6 +164,8 @@ def _daily_state(catalog, day):
         "stories": stories,
         "last_post": last_post,
         "used_urls": used_urls,
+        "event_keys": event_keys,
+        "event_signatures": event_signatures,
     }
 
 
@@ -621,7 +638,14 @@ async def _send_post_with_required_image(client, channel, post, items, slot):
 
 async def _publish(catalog, slot, items, state):
     post = await asyncio.to_thread(_compose, items, slot)
-    urls = [x["url"] for x in items[:8]]
+    urls = [x["url"] for x in items[:8] if x.get("url")]
+    # Persist event identity alongside source URLs in the existing state sheet.
+    # The metadata is parsed separately and never treated as a source URL.
+    for item in items[:8]:
+        if item.get("event_key"):
+            urls.append("event_key:" + str(item["event_key"]))
+        if item.get("event_signature"):
+            urls.append("event_signature:" + str(item["event_signature"])[:500])
     client = await mtproto_user_client._new_client(catalog)
     if not client:
         raise RuntimeError("MTProto session is not authorized")
@@ -646,31 +670,40 @@ async def _publish(catalog, slot, items, state):
             state["stories"] < MAX_STORIES_PER_DAY
             and not await asyncio.to_thread(_completed, catalog, slot, "story")
         ):
-            from telethon.tl import functions, types
+            try:
+                from telethon.tl import functions, types
 
-            title, subtitle = _story_copy(post)
-            media_file = await client.upload_file(
-                _story_image(title, subtitle), file_name=f"samui-news-{slot}.jpg"
-            )
-            media = types.InputMediaUploadedPhoto(file=media_file)
-            result = await client(
-                functions.stories.SendStoryRequest(
-                    peer=channel,
-                    media=media,
-                    privacy_rules=[types.InputPrivacyValueAllowAll()],
-                    random_id=random.randint(1, 2**63 - 1),
-                    caption="🌊 Samui News — главное об острове.\n\n👉 @samui_news_ru",
+                title, subtitle = _story_copy(post)
+                media_file = await client.upload_file(
+                    _story_image(title, subtitle), file_name=f"samui-news-{slot}.jpg"
                 )
-            )
-            await asyncio.to_thread(
-                _mark,
-                catalog,
-                slot,
-                "story",
-                title + "\n" + subtitle,
-                getattr(result, "id", ""),
-                urls,
-            )
+                media = types.InputMediaUploadedPhoto(file=media_file)
+                result = await client(
+                    functions.stories.SendStoryRequest(
+                        peer=channel,
+                        media=media,
+                        privacy_rules=[types.InputPrivacyValueAllowAll()],
+                        random_id=random.randint(1, 2**63 - 1),
+                        caption="🌊 Samui News — главное об острове.\n\n👉 @samui_news_ru",
+                    )
+                )
+                await asyncio.to_thread(
+                    _mark,
+                    catalog,
+                    slot,
+                    "story",
+                    title + "\n" + subtitle,
+                    getattr(result, "id", ""),
+                    urls,
+                )
+            except Exception as exc:
+                # Telegram Stories require channel boosts and are optional. A story
+                # failure must never turn a successfully published channel post
+                # into a scheduler error or trigger a retry.
+                if "BOOSTS_REQUIRED" in str(exc):
+                    log.warning("Samui News story skipped: channel boosts required")
+                else:
+                    log.exception("Samui News story failed; post remains published")
         log.info("Samui News slot published: %s", slot)
     finally:
         await client.disconnect()
