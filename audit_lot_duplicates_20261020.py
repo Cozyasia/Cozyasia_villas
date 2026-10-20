@@ -91,10 +91,7 @@ async def cleanup() -> dict[str, Any]:
             if not message:
                 raise RuntimeError(f"kept message {message_id} not found")
             source_html = _caption_html(message)
-            updated_html = source_html.replace(old_header, new_header)
-            # Also repair plain-text fallbacks if an old header was stored without keycap entities.
-            updated_html = updated_html.replace(old_header.replace("️⃣", ""), new_header)
-            if updated_html != source_html:
+            # Telegram stores keycap digits as separate custom-emoji HTML entities.\n            # Replace only the visible header and preserve all other caption entities.\n            token = lambda ch: rf"(?:<tg-emoji[^>]*>{re.escape(ch)}</tg-emoji>|{re.escape(ch)})"\n            old_pattern = "V" + "".join(token(ch) for ch in old_header[1:])\n            updated_html = re.sub(old_pattern, new_header, source_html, count=1)\n            # Plain-text fallback.\n            updated_html = updated_html.replace(old_header, new_header).replace(old_header.replace("️⃣", ""), new_header)\n            if updated_html != source_html:
                 text, entities = telethon_html.parse(updated_html)
                 await client.edit_message(
                     channel,
