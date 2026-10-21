@@ -102,7 +102,7 @@ async def _latest_lot(client, channel):
     entity = await client.get_entity(channel)
     async for msg in client.iter_messages(entity, limit=300):
         lot = publication_safety.lot_from_message(msg)
-        if channel == "arenda_vill_samui" and re.fullmatch(r"\d{1,2}-\d{3,7}", lot):
+        if channel == "arenda_vill_samui" and re.fullmatch(r"(?:\d{1,2}-)?\d{3,7}(?:-\d{1,2})?", lot):
             return lot
         if channel == "samuirental" and re.fullmatch(r"\d{3,7}", lot):
             return lot
@@ -111,9 +111,11 @@ async def _latest_lot(client, channel):
 def _next_lot(previous: str, channel: str) -> str:
     if channel == "arenda_vill_samui":
         match = re.fullmatch(r"(\d{1,2})-(\d{3,7})", previous)
-        if not match:
-            raise RuntimeError(f"Unexpected small-channel lot format: {previous!r}")
-        return f"{match.group(1)}-{int(match.group(2)) + 1}"
+        if match:
+            return f"{match.group(1)}-{int(match.group(2)) + 1}"
+        if re.fullmatch(r"\d{3,7}", previous):
+            return str(int(previous) + 1)
+        raise RuntimeError(f"Unexpected small-channel lot format: {previous!r}")
     return str(int(previous) + 1)
 
 async def _existing(client, channel: str):
