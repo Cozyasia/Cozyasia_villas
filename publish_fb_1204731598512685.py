@@ -134,7 +134,8 @@ def _verify_message(msg, lot: str, channel: str):
     for signature in ("Huathanon", "65 000", "5 000", "Оператор: @cozy_asia"):
         if signature not in live:
             raise RuntimeError(f"Read-back signature missing: {signature}")
-    if DRIVE_URL not in live:
+    entity_urls = {str(getattr(entity, "url", "") or "") for entity in (getattr(msg, "entities", None) or [])}
+    if DRIVE_URL not in entity_urls:
         raise RuntimeError("Read-back Drive gallery link missing")
     if "Jerome" in live or "+66 92 574 7876" in live or "facebook.com/marketplace" in live:
         raise RuntimeError("Private owner/source data leaked into public caption")
