@@ -76,7 +76,7 @@ def _caption_html() -> str:
 
 🗺 <a href="{MAP_URL}"><b>ГЕОЛОКАЦИЯ</b></a>
 
-📸 <a href="{DRIVE_URL}"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО — 40 ФОТО</b></a>
+📸 <a href="{DRIVE_URL}"><b>40 ФОТО</b></a>
 
 📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
 👉 <a href="{RENT_URL}"><b>ЖМИ ЗДЕСЬ</b></a> 👈
@@ -84,7 +84,7 @@ def _caption_html() -> str:
 
 Оператор: @Cozy_asia
 
-#АрендаСамуи #Бопхут #ВиллаСамуи #ВиллаСБассейном #ВидНаМоре #KohSamuiRental #CozyAsia"""
+#Бопхут #ВиллаСамуи #CozyAsia"""
 
 
 def _make_creds():
