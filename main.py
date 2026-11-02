@@ -133,6 +133,11 @@ def _drive_link_edit_mode() -> bool:
     return os.getenv("EDIT_SMALL_LOTS_DRIVE_LINKS_1201_1207", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _fb_973556095092770_mode() -> bool:
+    return os.getenv("PUBLISH_FB_973556095092770", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+
 def _fb_1204731598512685_mode() -> bool:
     return os.getenv("PUBLISH_FB_1204731598512685", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -238,6 +243,9 @@ elif __name__ == "__main__" and _photo_backfill_mode():
     from airbnb_photo_download_fallback import download_full_image as _download_full_image
     _photo_backfill._download_full_image = _download_full_image
     _photo_backfill.run_service_mode()
+elif __name__ == "__main__" and _fb_973556095092770_mode():
+    import publish_fb_973556095092770 as _fb_973556095092770
+    _fb_973556095092770.run_service_mode()
 elif __name__ == "__main__" and _fb_1204731598512685_mode():
     import publish_fb_1204731598512685 as _fb_1204731598512685
     _fb_1204731598512685.run_service_mode()
