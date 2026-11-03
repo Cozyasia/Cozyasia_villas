@@ -276,6 +276,20 @@ else:
     if __name__ == "__main__":
         _disable_accidental_startup_publishers()
         _run_drive_permission_probe_if_requested()
+        # Queue worker runs independently of the Telegram bot's webhook.
+        # Only explicit "ready" rows are processed; "prepared" is never sent.
+        import threading
+        import time
+        import logging
+        def _publication_queue_loop():
+            while True:
+                try:
+                    import publication_queue_runner
+                    publication_queue_runner.run_once()
+                except Exception:
+                    logging.getLogger("cozy-publication-queue").exception("Queue polling failed")
+                time.sleep(90)
+        threading.Thread(target=_publication_queue_loop, name="cozy-publication-queue", daemon=True).start()
         _entry.main()
 
 
