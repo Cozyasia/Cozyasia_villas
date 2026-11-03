@@ -89,12 +89,16 @@ def run_once():
                         raise RuntimeError("MTProto session unavailable")
                     try:
                         entity = await c.get_entity(channel)
-                        for m in await c.get_messages(entity, limit=300):
+                        for idx, m in enumerate(await c.get_messages(entity, limit=300)):
+                            if idx < 25:
+                                LOG.info("QUEUE_RECON_SCAN id=%s media=%s caption=%r", m.id, bool(m.media), (m.message or "")[:95])
                             if publication_safety.lot_from_message(m) == lot or re.search(r"(?i)(?:лот|lot)\s*[№#]?\s*" + re.escape(lot) + r"(?!\d)", getattr(m, "message", "") or ""):
                                 return "https://t.me/" + channel + "/" + str(m.id)
                     finally:
                         await c.disconnect()
                 found = asyncio.run(_reconcile())
+                if not found:
+                    LOG.warning("QUEUE_RECON_NOT_FOUND lot=%s channel=%s", lot, channel)
                 if found:
                     ws.update_cell(row_number, 5, found)
                     ws.update_cell(row_number, 6, "reconciled_after_readback_error")
