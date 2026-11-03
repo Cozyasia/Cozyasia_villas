@@ -49,7 +49,7 @@ async def _publish(lot, caption, ids, channel_name):
         channel = await client.get_entity(channel_name)
         recent = await client.get_messages(channel, limit=300)
         for msg in recent:
-            if publication_safety.lot_from_message(msg) == lot or re.search(r"(?i)(?:лот|lot)\\s*[№#]?\\s*" + re.escape(lot) + r"(?!\\d)", getattr(msg, "message", "") or ""):
+            if publication_safety.lot_from_message(msg) == lot or re.search(r"(?i)(?:лот|lot)\s*[№#]?\s*" + re.escape(lot) + r"(?!\d)", getattr(msg, "message", "") or ""):
                 return "https://t.me/" + channel_name + "/" + str(msg.id), "already"
         text, entities = telethon_html.parse(caption)
         text, entities, upgraded = mtproto_user_client.upgrade_text(text, entities, lot)
@@ -65,7 +65,7 @@ async def _publish(lot, caption, ids, channel_name):
             raise RuntimeError("Expected 10 photos, got " + str(len(messages)))
         caption_msg = next((m for m in messages if getattr(m, "message", None)), messages[0])
         verify = await client.get_messages(channel, ids=caption_msg.id)
-        if verify is None or not (publication_safety.lot_from_message(verify) == lot or re.search(r"(?i)(?:лот|lot)\\s*[№#]?\\s*" + re.escape(lot) + r"(?!\\d)", getattr(verify, "message", "") or "")):
+        if verify is None or not (publication_safety.lot_from_message(verify) == lot or re.search(r"(?i)(?:лот|lot)\s*[№#]?\s*" + re.escape(lot) + r"(?!\d)", getattr(verify, "message", "") or "")):
             LOG.warning("Telegram album sent but caption readback mismatch; message_id=%s lot=%s", caption_msg.id, lot)
             return "https://t.me/" + channel_name + "/" + str(caption_msg.id), "sent_unverified"
         return "https://t.me/" + channel_name + "/" + str(caption_msg.id), "published"
@@ -90,7 +90,7 @@ def run_once():
                     try:
                         entity = await c.get_entity(channel)
                         for m in await c.get_messages(entity, limit=300):
-                            if publication_safety.lot_from_message(m) == lot or re.search(r"(?i)(?:лот|lot)\\s*[№#]?\\s*" + re.escape(lot) + r"(?!\\d)", getattr(m, "message", "") or ""):
+                            if publication_safety.lot_from_message(m) == lot or re.search(r"(?i)(?:лот|lot)\s*[№#]?\s*" + re.escape(lot) + r"(?!\d)", getattr(m, "message", "") or ""):
                                 return "https://t.me/" + channel + "/" + str(m.id)
                     finally:
                         await c.disconnect()
