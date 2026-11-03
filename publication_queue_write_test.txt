@@ -1,0 +1,2 @@
+Cozy Asia publication queue write permission test.
+No credentials, no publication, no production changes.
