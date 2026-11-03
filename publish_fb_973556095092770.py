@@ -200,6 +200,12 @@ async def run() -> dict:
         raise RuntimeError("MTProto Premium session is not authorized")
     try:
         channel = await client.get_entity(CHANNEL)
+        recent = await client.get_messages(channel, limit=100)
+        direct_duplicate = next((m for m in recent if "270 000" in (getattr(m, "message", None) or "") and "Koh Phangan" in (getattr(m, "message", None) or "")), None)
+        if direct_duplicate:
+            result = {"channel": CHANNEL, "lot": LOT, "message_id": int(direct_duplicate.id), "result": "already", "source": SOURCE_ID}
+            log.info("PUBLISH_FB_973556095092770_DONE %s", json.dumps(result, ensure_ascii=False))
+            return result
         duplicate = await publication_safety.find_duplicate_listing(
             client, channel, ("Bophut", "270 000", "Koh Phangan"), limit=300
         )
