@@ -6,6 +6,8 @@ import logging
 from datetime import datetime
 from typing import List, Set, Optional, Union
 
+import villa_lead_context
+
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
@@ -35,6 +37,7 @@ PORT           = int(os.environ.get("PORT", "10000"))
 GROUP_CHAT_TARGET = os.environ.get("GROUP_CHAT_TARGET", "").strip()
 # Backward compatibility:
 GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "").strip()
+INTERNAL_LEAD_CONTACT_TARGET = os.environ.get("INTERNAL_LEAD_CONTACT_TARGET", "").strip()
 
 SHEET_ID              = os.environ.get("GOOGLE_SHEET_ID", "").strip()
 GOOGLE_WORKSHEET_NAME = os.environ.get("GOOGLE_WORKSHEET_NAME", "Leads").strip()
@@ -63,6 +66,15 @@ def _parse_chat_target() -> Optional[Union[int, str]]:
     return v  # e.g. "@Cozy_asia"
 
 NOTIFY_TARGET = _parse_chat_target()
+
+def _parse_private_internal_target() -> Optional[int]:
+    """Only an explicit private Telegram supergroup may receive owner contacts."""
+    raw = INTERNAL_LEAD_CONTACT_TARGET.strip()
+    if raw.startswith("-100") and raw[1:].isdigit():
+        return int(raw)
+    return None
+
+PRIVATE_CONTACT_TARGET = _parse_private_internal_target()
 
 # ===================== OpenAI helpers =====================
 def _log_openai_env():
@@ -137,6 +149,8 @@ def _init_sheets_once():
             "location", "bedrooms", "budget",
             "checkin", "checkout", "type", "notes",
             "contact", "transfer",
+            "registry_id", "owner_name", "owner_whatsapp", "owner_phone",
+            "owner_facebook", "source_listing", "owner_contact_status",
         ]
         vals = _worksheet.get_all_values()
         if not vals:
@@ -417,6 +431,13 @@ async def q_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     ud = context.user_data
     lots = ud.get("lots", "") or ud.get("lot_hint", "")
+    owner_context = villa_lead_context.resolve_owner_context(
+        villa_lead_context.LeadLotIdentity(
+            lot_id=lots,
+            channel=ud.get("lot_channel", ""),
+            message_id=ud.get("lot_message_id", ""),
+        )
+    )
 
     summary = (
         "📝 Заявка сформирована и передана менеджеру.\n\n"
@@ -457,7 +478,17 @@ async def q_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Трансфер: {ud.get('transfer','')}\n"
                 f"Создано: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
             )
+            if PRIVATE_CONTACT_TARGET is not None and PRIVATE_CONTACT_TARGET == NOTIFY_TARGET:
+                group_text += "\n\n" + owner_context.text
+            elif PRIVATE_CONTACT_TARGET is None:
+                group_text += "\n\n🔒 Контакты объекта сохранены во внутреннем реестре. Для их отправки сюда нужен явно заданный private group ID в INTERNAL_LEAD_CONTACT_TARGET."
             await context.bot.send_message(chat_id=NOTIFY_TARGET, text=group_text, disable_web_page_preview=True)
+            if PRIVATE_CONTACT_TARGET is not None and PRIVATE_CONTACT_TARGET != NOTIFY_TARGET:
+                await context.bot.send_message(
+                    chat_id=PRIVATE_CONTACT_TARGET,
+                    text=f"🆕 Внутренние данные к заявке\nЛот: {lots}\nКлиент: {ud.get('name','')}\n\n{owner_context.text}",
+                    disable_web_page_preview=True,
+                )
     except Exception as e:
         log.error("Failed to notify target: %s", e)
 
@@ -479,6 +510,13 @@ async def q_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ud.get("notes",""),
             ud.get("contact",""),
             ud.get("transfer",""),
+            owner_context.fields.get("ID", ""),
+            owner_context.fields.get("Собственник / агент", ""),
+            owner_context.fields.get("WhatsApp", ""),
+            owner_context.fields.get("Телефон", ""),
+            owner_context.fields.get("Facebook", ""),
+            owner_context.fields.get("Исходное объявление", ""),
+            owner_context.status,
         ]
         ok = append_lead_row(row)
         if not ok:
