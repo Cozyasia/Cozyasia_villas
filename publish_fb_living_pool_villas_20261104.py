@@ -102,12 +102,12 @@ async def run():
         channel = await client.get_entity(CHANNEL)
         await client.delete_messages(channel, list(range(1901, 1931)))
         recent = await client.get_messages(channel, limit=80)
-        duplicate = next((m for m in recent if publication_safety.lot_from_message(m) == "12-35"), None)
+        duplicate = next((m for m in recent if publication_safety.lot_from_message(m) == "1235"), None)
         if duplicate:
-            result = {"channel": CHANNEL, "lot": "12-35", "message_id": int(duplicate.id), "result": "already_published", "photos": 10, "source": SOURCE_ID}
+            result = {"channel": CHANNEL, "lot": "1235", "message_id": int(duplicate.id), "result": "already_published", "photos": 10, "source": SOURCE_ID}
             log.info("PUBLISH_FB_LIVING_POOL_20261104_DONE %s", json.dumps(result, ensure_ascii=False))
             return result
-        lot = "12-35"
+        lot = "1235"
         text, entities = final_caption(lot)
         with tempfile.TemporaryDirectory(prefix="fb-living-pool-") as d:
             photos = await asyncio.to_thread(download_photos, d)
