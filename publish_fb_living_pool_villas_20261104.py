@@ -22,6 +22,7 @@ PHOTO_URLS = [
     "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/08.jpg",
     "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/09.jpg",
     "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/10.jpg",
+]
 
 def caption_html(lot):
     rent_url = channel_publication_policy.bot_url(CHANNEL, f"rent_{lot}")
