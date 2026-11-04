@@ -17,12 +17,12 @@ SOURCE_URL = "https://www.facebook.com/TheLivingPoolVillasKohSamui/posts/pfbid0f
 MAP_URL = "https://maps.app.goo.gl/E7FujCNftjVi1ZNN7"
 DRIVE_URL = "https://drive.google.com/drive/folders/1Vt5hmGMSao7-S1cnh9Ytpuk-H9WBKcY2"
 PHOTO_URLS = [
-"https://scontent-den2-1.xx.fbcdn.net/v/t39.30808-6/491859810_1172711174654706_3830793778810090455_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1212&ctp=s590x590&_nc_cat=103&ccb=1-7&_nc_sid=833d8c&_nc_ohc=aFJGPnl_AdIQ7kNvwGrcURw&_nc_oc=AdrFB7rwDVSErvnNGIpjgDXYR1NiIQKjz7neoJ--GqNSvijyECB7C0E4zg0tW4Zr7vUX_ntEMJzI05c9iSB1Uhdj&_nc_zt=23&_nc_ht=scontent-den2-1.xx&_nc_gid=Bgjw9UYAydI2ewVYqQ8vrg&_nc_ss=7b2a8&oh=00_AQSqEsKPq3aq7lSUGRRcSJwzwu5LL7r0Gl6XGU3wvJJ_9Q&oe=6AF0F0D8",
-"https://scontent-den2-1.xx.fbcdn.net/v/t39.30808-6/491843065_1172712617987895_965314525203906071_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1536&ctp=s590x590&_nc_cat=101&ccb=1-7&_nc_sid=833d8c&_nc_ohc=b-ZkPjw_rwcQ7kNvwHZ0dhx&_nc_oc=Ador6MARifQ9zk1L7xXYLnKjy5S6XsJm-Wavti3qNAbJsUdr9cMUUw5aSQ7HI2N75UyKHxIBNrvthudbhFtPGja-&_nc_zt=23&_nc_ht=scontent-den2-1.xx&_nc_gid=Bgjw9UYAydI2ewVYqQ8vrg&_nc_ss=7b2a8&oh=00_AQTNO4YTD3WOuCTipgHy7Evdcd0k8eYuYM407_T37ZAjYA&oe=6AF0F10F",
-"https://scontent-den2-1.xx.fbcdn.net/v/t39.30808-6/491960774_1172713374654486_4737601601611731255_n.jpg?stp=dst-jpg_tt6&cstp=mx1536x2048&ctp=s590x590&_nc_cat=102&ccb=1-7&_nc_sid=833d8c&_nc_ohc=oDVHDVLEdAQQ7kNvwHyKb8i&_nc_oc=AdotHjA9C2SbG5gnkW9k7Xy72OUFU4UnBk6a-1GjV0_E0BPJczP90gbJvm9wwkH-fD4xP2LQTW1BU7_Epr3uj1Jm&_nc_zt=23&_nc_ht=scontent-den2-1.xx&_nc_gid=Bgjw9UYAydI2ewVYq8vrg&_nc_ss=7b2a8&oh=00_AQTSafs8ayFGO0SRQ00AGa8Y7SnzNq3wlerDzlkfLDiElw&oe=6AF11451",
-"https://scontent-den2-1.xx.fbcdn.net/v/t39.30808-6/492141453_1172713264654497_4114511531823071674_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1536&ctp=s590x590&_nc_cat=108&ccb=1-7&_nc_sid=833d8c&_nc_ohc=osdcx7ZKmKsQ7kNvwH1H3kh&_nc_oc=AdpY7WDgnGeP9Bg77IAgdbyM05wwm6MRfYO6B5b5-3qx2ZT9d4EhRjP1SqE2vxImEpbg24r8RpINGMaun8i_i4Zb&_nc_zt=23&_nc_ht=scontent-den2-1.xx&_nc_gid=Bgjw9UYAydI2ewVYqQ8vrg&_nc_ss=7b2a8&oh=00_AQSQfGycF3oVwGKG93MGRBLBd2vl2n255mmiFMKbVDDZAg&oe=6AF10877",
-"https://scontent-den2-1.xx.fbcdn.net/v/t39.30808-6/491292571_1172712611321229_5047101303473597363_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1536&ctp=s590x590&_nc_cat=105&ccb=1-7&_nc_sid=833d8c&_nc_ohc=U7qmtAlbmRcQ7kNvwFZM0rX&_nc_oc=Adq_B2vJMh9iOhUsnn_LltXf_d9UVCKmw0my8-fcGZwC32bfJiAicGogapfoG7Zy4lnkQOMfwVyhXoLrP6qVPtzw&_nc_zt=23&_nc_ht=scontent-den2-1.xx&_nc_gid=Bgjw9UYAydI2ewVYqQ8vrg&_nc_ss=7b2a8&oh=00_AQSW3k5Msy9tN-4QXtGZKmAtxNeFcwlLW9X9wUWPGbgfTQ&oe=6AF0E445",
-]
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/06.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/07.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/08.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/09.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot12-35/10.jpg",
+
 def caption_html(lot):
     rent_url = channel_publication_policy.bot_url(CHANNEL, f"rent_{lot}")
     search_url = channel_publication_policy.bot_url(CHANNEL, "search")
