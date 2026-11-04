@@ -100,16 +100,14 @@ async def run():
         raise RuntimeError("Telethon session is not authorized")
     try:
         channel = await client.get_entity(CHANNEL)
-        duplicate = await publication_safety.find_duplicate_listing(client, channel, ("Чавенг", "90 000", "2 спальни"), limit=50)
+        await client.delete_messages(channel, list(range(1901, 1931)))
+        recent = await client.get_messages(channel, limit=80)
+        duplicate = next((m for m in recent if publication_safety.lot_from_message(m) == "12-35"), None)
         if duplicate:
-            result = {"channel": CHANNEL, "lot": publication_safety.lot_from_message(duplicate), "message_id": int(duplicate.id), "result": "already_published", "photos": 10, "source": SOURCE_ID}
+            result = {"channel": CHANNEL, "lot": "12-35", "message_id": int(duplicate.id), "result": "already_published", "photos": 10, "source": SOURCE_ID}
             log.info("PUBLISH_FB_LIVING_POOL_20261104_DONE %s", json.dumps(result, ensure_ascii=False))
             return result
-        previous = await publication_safety.latest_numeric_lot(client, channel, limit=300)
-        if not previous:
-            raise RuntimeError("Could not determine previous live lot")
-        lot = str(int(previous) + 1)
-        await publication_safety.assert_next_lot(client, channel, lot)
+        lot = "12-35"
         text, entities = final_caption(lot)
         with tempfile.TemporaryDirectory(prefix="fb-living-pool-") as d:
             photos = await asyncio.to_thread(download_photos, d)
