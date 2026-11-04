@@ -188,6 +188,9 @@ elif __name__ == "__main__" and _fb_3525763387738681_mode():
 elif __name__ == "__main__" and _fb_1741918390416111_mode():
     import publish_fb_1741918390416111 as _fb_1741918390416111
     _fb_1741918390416111.run_service_mode()
+elif __name__ == "__main__" and _fb_living_pool_20261104_mode():
+    import publish_fb_living_pool_villas_20261104 as _fb_living_pool_20261104
+    _fb_living_pool_20261104.run_service_mode()
 elif __name__ == "__main__" and _fb_living_pool_mode():
     import publish_fb_living_pool_villas_20261015 as _fb_living_pool
     _fb_living_pool.run_service_mode()
