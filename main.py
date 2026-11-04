@@ -137,6 +137,10 @@ def _fb_973556095092770_mode() -> bool:
     return os.getenv("PUBLISH_FB_973556095092770", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _fb_living_pool_20261104_mode() -> bool:
+    return os.getenv("PUBLISH_FB_LIVING_POOL_20261104", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 
 def _fb_1204731598512685_mode() -> bool:
     return os.getenv("PUBLISH_FB_1204731598512685", "0").strip().lower() in {"1", "true", "yes", "on"}
@@ -246,6 +250,10 @@ elif __name__ == "__main__" and _photo_backfill_mode():
 elif __name__ == "__main__" and _fb_973556095092770_mode():
     import publish_fb_973556095092770 as _fb_973556095092770
     _fb_973556095092770.run_service_mode()
+
+elif __name__ == "__main__" and _fb_living_pool_20261104_mode():
+    import publish_fb_living_pool_villas_20261104 as _fb_living_pool_20261104
+    _fb_living_pool_20261104.run_service_mode()
 elif __name__ == "__main__" and _fb_1204731598512685_mode():
     import publish_fb_1204731598512685 as _fb_1204731598512685
     _fb_1204731598512685.run_service_mode()
