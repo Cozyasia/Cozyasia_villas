@@ -74,7 +74,14 @@ def _parse_private_internal_target() -> Optional[int]:
         return int(raw)
     return None
 
-PRIVATE_CONTACT_TARGET = _parse_private_internal_target()
+def _private_numeric_target(value: Optional[Union[int, str]]) -> Optional[int]:
+    """A numeric -100… target is a Telegram private supergroup, never a public @channel."""
+    return value if isinstance(value, int) and str(value).startswith("-100") else None
+
+# Existing installations already use GROUP_CHAT_TARGET for an internal group.
+# Reuse it only when Telegram identifies that destination as a private numeric
+# supergroup. Public @channels never receive owner data.
+PRIVATE_CONTACT_TARGET = _parse_private_internal_target() or _private_numeric_target(NOTIFY_TARGET)
 
 # ===================== OpenAI helpers =====================
 def _log_openai_env():
