@@ -16,16 +16,16 @@ SOURCE_URL = "https://drive.google.com/drive/folders/1Xy2AjZ9d5GjSzJFVoKQEZ36CMk
 MAP_URL = "https://maps.app.goo.gl/BwnjJVpRzE9zTCgN8"
 DRIVE_URL = "https://drive.google.com/drive/folders/1-4evIQJW4KmIr_QW2D61EFKuAQfmNdWG"
 PHOTO_URLS = [
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/01.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/02.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/03.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/04.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/05.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/06.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/07.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/08.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/09.png",
-    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/10.png",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/01.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/02.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/03.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/04.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/05.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/06.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/07.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/08.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/09.jpg",
+    "https://raw.githubusercontent.com/Cozyasia/Cozyasia_villas/main/assets/lot1237/10.jpg",
 ]
 
 def caption_html(lot):
