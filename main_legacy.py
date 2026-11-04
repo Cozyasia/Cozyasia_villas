@@ -11,6 +11,7 @@ import time
 from telegram.ext import CommandHandler, ConversationHandler, MessageHandler, filters
 
 import legacy_main as legacy
+import villa_lead_context
 import cozy_catalog
 import catalog_fixes
 import catalog_feedback_patch
@@ -115,9 +116,11 @@ async def smart_start(update, context):
     if low=="search":
         context.user_data.clear(); await update.effective_message.reply_text(SEARCH_GREETING); return ConversationHandler.END
     if low=="rent" or low.startswith("rent_"):
-        lot=payload[5:].strip() if low.startswith("rent_") else ""; context.user_data.clear()
-        if lot and re.fullmatch(r"[A-Za-z0-9_-]{1,40}",lot):
-            context.user_data["lots"]=lot; context.user_data["lot_hint"]=lot; log.info("Deep-link application for lot=%s",lot)
+        identity=villa_lead_context.parse_rent_payload(payload); context.user_data.clear()
+        if identity.lot_id:
+            context.user_data["lots"]=identity.lot_id; context.user_data["lot_hint"]=identity.lot_id
+            context.user_data["lot_channel"]=identity.channel; context.user_data["lot_message_id"]=identity.message_id
+            log.info("Deep-link application for lot=%s channel=%s message=%s", identity.lot_id, identity.channel or "legacy", identity.message_id or "—")
         return await legacy.cmd_rent(update,context)
     if payload:
         normalized=legacy._normalize_start_payload(payload); context.user_data.clear(); context.user_data["lots"]=normalized; context.user_data["lot_hint"]=normalized
