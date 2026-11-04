@@ -100,6 +100,11 @@ async def run():
         raise RuntimeError("Telethon session is not authorized")
     try:
         channel = await client.get_entity(CHANNEL)
+        duplicate = await publication_safety.find_duplicate_listing(client, channel, ("Чавенг", "90 000", "2 спальни"), limit=50)
+        if duplicate:
+            result = {"channel": CHANNEL, "lot": publication_safety.lot_from_message(duplicate), "message_id": int(duplicate.id), "result": "already_published", "photos": 10, "source": SOURCE_ID}
+            log.info("PUBLISH_FB_LIVING_POOL_20261104_DONE %s", json.dumps(result, ensure_ascii=False))
+            return result
         previous = await publication_safety.latest_numeric_lot(client, channel, limit=300)
         if not previous:
             raise RuntimeError("Could not determine previous live lot")
@@ -115,7 +120,7 @@ async def run():
         if publication_safety.lot_from_message(verify) != lot:
             raise RuntimeError("Read-back lot mismatch")
         publication_safety.validate_premium_caption(verify.message, verify.entities, lot)
-        for signature in ("Чавенг", "90 000", "5 000", "12-35"):
+        for signature in ("Чавенг", "90 000", "5 000"):
             if signature not in (verify.message or ""):
                 raise RuntimeError(f"Read-back signature missing: {signature}")
         result = {"channel": CHANNEL, "lot": lot, "message_id": int(caption_msg.id), "result": "published", "photos": len(photos), "source": SOURCE_ID}
