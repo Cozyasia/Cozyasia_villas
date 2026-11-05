@@ -1,5 +1,6 @@
 # backfill_render.py
 import os, re, json, base64, asyncio
+import hashlib
 from datetime import datetime
 
 import gspread
@@ -122,9 +123,42 @@ def open_listings_ws(sheet_id: str, tab: str, gsa_raw: str):
         ]])
     return ws
 
-async def build_client(api_id: int, api_hash: str):
+def load_encrypted_mt_session(sheet_id: str, gsa_raw: str, mt_session_key: str) -> str:
+    """Load the existing encrypted user StringSession from MTProtoAuth."""
+    if not mt_session_key:
+        return ""
+    info = load_gsa_info(gsa_raw)
+    creds = Credentials.from_service_account_info(
+        info,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ],
+    )
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(sheet_id)
+    try:
+        ws = sh.worksheet("MTProtoAuth")
+    except gspread.WorksheetNotFound:
+        return ""
+    encrypted = ""
+    for row in ws.get_all_values()[1:]:
+        if row and row[0] == "session" and len(row) > 1 and row[1]:
+            encrypted = row[1].strip()
+            break
+    if not encrypted:
+        return ""
+    from cryptography.fernet import Fernet
+    digest = hashlib.sha256(mt_session_key.encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest)).decrypt(encrypted.encode("ascii")).decode("utf-8")
+
+async def build_client(api_id: int, api_hash: str, sheet_id: str = "", gsa_raw: str = ""):
     bot_token = env_any("TELEGRAM_BOT_TOKEN")
     session_str = env_any("TELEGRAM_SESSION","SESSION_STRING")
+    if not session_str:
+        mt_session_key = env_any("MT_SESSION_KEY")
+        if mt_session_key and sheet_id and gsa_raw:
+            session_str = load_encrypted_mt_session(sheet_id, gsa_raw, mt_session_key)
     if session_str:
         ss = sanitize_session_str(session_str)
         if not ss:
@@ -144,8 +178,8 @@ async def build_client(api_id: int, api_hash: str):
 
 # ---------- main ----------
 async def backfill():
-    api_id   = env_any("TELEGRAM_API_ID","MT_API_ID","API_ID", cast=int)
-    api_hash = env_any("TELEGRAM_API_HASH","MT_API_HASH","API_HASH")
+    api_id   = env_any("TELEGRAM_API_ID","API_ID", cast=int)
+    api_hash = env_any("TELEGRAM_API_HASH","API_HASH")
     channel_cfg = env_any("CHANNEL_USERNAME","CHANNEL")
     sheet_id = env_any("GOOGLE_SHEETS_DB_ID","SHEET_ID","GOOGLE_SHEET_ID","GOOGLE_SPREADSHEET_ID","COZY_GOOGLE_SHEET_ID")
     tab = env_any("LISTINGS_TAB", default="Listings")
@@ -170,7 +204,7 @@ async def backfill():
         pass
 
     print(f"==> Backfill started: channel={channel}, limit={limit}, known_ids={len(existing_ids)}")
-    client = await build_client(api_id, api_hash)
+    client = await build_client(api_id, api_hash, sheet_id, gsa_json)
 
     new_rows, saved_total = [], 0
     try:
@@ -208,3 +242,4 @@ async def backfill():
 
 if __name__ == "__main__":
     asyncio.run(backfill())
+
