@@ -178,8 +178,8 @@ async def build_client(api_id: int, api_hash: str, sheet_id: str = "", gsa_raw: 
 
 # ---------- main ----------
 async def backfill():
-    api_id   = env_any("TELEGRAM_API_ID","API_ID", cast=int)
-    api_hash = env_any("TELEGRAM_API_HASH","API_HASH")
+    api_id   = env_any("TELEGRAM_API_ID","MT_API_ID","API_ID", cast=int)
+    api_hash = env_any("TELEGRAM_API_HASH","MT_API_HASH","API_HASH")
     channel_cfg = env_any("CHANNEL_USERNAME","CHANNEL")
     sheet_id = env_any("GOOGLE_SHEETS_DB_ID","SHEET_ID","GOOGLE_SHEET_ID","GOOGLE_SPREADSHEET_ID","COZY_GOOGLE_SHEET_ID")
     tab = env_any("LISTINGS_TAB", default="Listings")
