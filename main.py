@@ -9,6 +9,10 @@ import os
 
 
 
+def _backfill_render_mode() -> bool:
+    return os.getenv("BACKFILL_RENDER_ONCE", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _audit_samui_news_mode() -> bool:
     return os.getenv("AUDIT_SAMUI_NEWS_30_20261020", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -150,6 +154,10 @@ def _fb_1204731598512685_mode() -> bool:
     return os.getenv("PUBLISH_FB_1204731598512685", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+if __name__ == "__main__" and _backfill_render_mode():
+    import asyncio as _asyncio
+    import backfill_render as _backfill_render
+    _asyncio.run(_backfill_render.backfill())
 if __name__ == "__main__" and _audit_samui_news_mode():
     import audit_samui_news_20261020 as _audit_samui_news
     _audit_samui_news.run_service_mode()
