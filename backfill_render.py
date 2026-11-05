@@ -213,7 +213,7 @@ async def backfill():
             mid = str(msg.id)
             if mid in existing_ids: continue
 
-            text = (msg.message or "").strip() or (msg.caption or "").strip()
+            text = (getattr(msg, "message", "") or "").strip()
             price, br = parse_price_bedrooms(text or "")
             title = (text.splitlines()[0][:120] if text else "")
             ts = (msg.date or datetime.utcnow()).strftime("%Y-%m-%d %H:%M:%S")
