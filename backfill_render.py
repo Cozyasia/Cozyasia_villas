@@ -147,9 +147,9 @@ async def backfill():
     api_id   = env_any("TELEGRAM_API_ID","MT_API_ID","API_ID", cast=int)
     api_hash = env_any("TELEGRAM_API_HASH","MT_API_HASH","API_HASH")
     channel_cfg = env_any("CHANNEL_USERNAME","CHANNEL")
-    sheet_id = env_any("GOOGLE_SHEETS_DB_ID","SHEET_ID")
+    sheet_id = env_any("GOOGLE_SHEETS_DB_ID","SHEET_ID","GOOGLE_SHEET_ID","GOOGLE_SPREADSHEET_ID","COZY_GOOGLE_SHEET_ID")
     tab = env_any("LISTINGS_TAB", default="Listings")
-    gsa_json = env_any("GOOGLE_SERVICE_ACCOUNT_JSON")
+    gsa_json = env_any("GOOGLE_SERVICE_ACCOUNT_JSON","GOOGLE_CREDS_JSON","GOOGLE_SERVICE_ACCOUNT")
     limit = env_any("BACKFILL_LIMIT", default="1000")
     try: limit = int(limit)
     except: limit = 1000
