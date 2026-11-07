@@ -395,7 +395,7 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
             try:
                 await _edit_with_retry(client, channel, int(msg.id), text, new_entities)
                 verify = await client.get_messages(channel, ids=int(msg.id))
-                bad = _verify_routes(verify, expected_bot)
+                bad = _verify_routes(verify, channel, expected_bot)
                 if bad:
                     raise RuntimeError(f"Post-edit verification failed: {bad}")
                 migrated.append(int(msg.id))
