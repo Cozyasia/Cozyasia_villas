@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import re
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import publication_safety
 
@@ -57,6 +57,14 @@ def bot_url(channel: str, payload: str = "") -> str:
     return f"https://t.me/{bot}{suffix}"
 
 
+def rent_payload(channel: str, message_id: int | str, lot: str) -> str:
+    """Build a precise payload for the bot that can resolve owner details."""
+    normalized_lot = re.sub(r"[^A-Za-z0-9-]", "", str(lot or ""))
+    if normalize_channel(channel) == SMALL_CHANNEL and str(message_id).isdigit() and normalized_lot:
+        return f"rent_v_a_{int(message_id)}_{normalized_lot}"
+    return f"rent_{normalized_lot}" if normalized_lot else "rent"
+
+
 def _rewrite_deep_link(url: str, channel: str) -> tuple[str, bool]:
     raw = str(url or "").strip()
     if not raw:
@@ -75,6 +83,31 @@ def _rewrite_deep_link(url: str, channel: str) -> tuple[str, bool]:
     path = "/" + target
     new_url = urlunsplit((parts.scheme or "https", "t.me", path, query, parts.fragment))
     return new_url, new_url != raw
+
+
+def _rewrite_rent_payload(url: str, channel: str, message_id: int | str, lot: str) -> tuple[str, bool]:
+    """Upgrade only VillaBot rent links to the exact channel/message context."""
+    if normalize_channel(channel) != SMALL_CHANNEL:
+        return url, False
+    try:
+        parts = urlsplit(str(url or ""))
+    except Exception:
+        return url, False
+    if (parts.netloc or "").lower() not in {"t.me", "telegram.me", "www.t.me", "www.telegram.me"}:
+        return url, False
+    expected = rent_payload(channel, message_id, lot)
+    changed = False
+    params = []
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        if key.lower() == "start" and re.fullmatch(r"rent(?:_[^&]+)?", value or "", flags=re.I):
+            params.append((key, expected))
+            changed = changed or value != expected
+        else:
+            params.append((key, value))
+    if not changed:
+        return url, False
+    new_url = urlunsplit((parts.scheme or "https", "t.me", "/" + SMALL_BOT, urlencode(params), parts.fragment))
+    return new_url, new_url != url
 
 
 def _deep_link_urls(entities) -> list[str]:
@@ -119,22 +152,23 @@ def _rewrite_plain_bot_mentions(text: str, channel: str) -> tuple[str, bool]:
     return new_text, changed
 
 
-def _rewrite_entities(entities, channel: str):
+def _rewrite_entities(entities, channel: str, message_id: int | str, lot: str):
     changed = False
     new_entities = []
     for ent in entities or []:
         cloned = copy.copy(ent)
         if hasattr(cloned, "url"):
             old = str(getattr(cloned, "url", "") or "")
-            new, did = _rewrite_deep_link(old, channel)
-            if did:
-                cloned.url = new
+            new, route_changed = _rewrite_deep_link(old, channel)
+            newer, payload_changed = _rewrite_rent_payload(new, channel, message_id, lot)
+            if route_changed or payload_changed:
+                cloned.url = newer
                 changed = True
         new_entities.append(cloned)
     return new_entities, changed
 
 
-def _append_missing_ctas(text: str, entities, channel_name: str, lot: str, is_media: bool):
+def _append_missing_ctas(text: str, entities, channel_name: str, message_id: int | str, lot: str, is_media: bool):
     """Append only missing application/search CTAs while preserving rich entities."""
     urls = _deep_link_urls(entities)
     missing_rent = not _has_payload(urls, "rent")
@@ -146,7 +180,7 @@ def _append_missing_ctas(text: str, entities, channel_name: str, lot: str, is_me
     html_text = telethon_html.unparse(text, list(entities or []))
     additions = []
     if missing_rent:
-        rent = bot_url(channel_name, f"rent_{lot}")
+        rent = bot_url(channel_name, rent_payload(channel_name, message_id, lot))
         additions.append(
             f'📝 <b>ОСТАВИТЬ ЗАЯВКУ</b> — '
             f'<a href="{rent}"><b>ЖМИ ЗДЕСЬ</b></a>'
@@ -176,7 +210,7 @@ async def _edit_listing(client, channel_name: str, msg, lot: str):
     text = getattr(msg, "message", None) or ""
     entities = list(getattr(msg, "entities", None) or [])
     new_text, text_changed = _rewrite_plain_bot_mentions(text, channel_name)
-    new_entities, entity_changed = _rewrite_entities(entities, channel_name)
+    new_entities = entities
 
     if text_changed:
         from telethon.extensions import html as telethon_html
@@ -187,18 +221,14 @@ async def _edit_listing(client, channel_name: str, msg, lot: str):
                 continue
             html_text = re.sub(r"@" + re.escape(old) + r"\b", "@" + target, html_text, flags=re.I)
 
-        def repl_href(m):
-            old = m.group(1)
-            new, _ = _rewrite_deep_link(old, channel_name)
-            return f'href="{new}"'
-
-        html_text = re.sub(r'href="([^"]+)"', repl_href, html_text, flags=re.I)
         new_text, new_entities = telethon_html.parse(html_text)
 
+    new_entities, entity_changed = _rewrite_entities(new_entities, channel_name, int(msg.id), lot)
     new_text, new_entities, cta_changed = _append_missing_ctas(
         new_text,
         new_entities,
         channel_name,
+        int(msg.id),
         lot,
         bool(getattr(msg, "media", None)),
     )
@@ -289,7 +319,15 @@ def apply_to_standardizer(mod, catalog) -> None:
     original = mod.build_post
 
     def routed_build_post(row, _bot_username, links=None):
-        return original(row, bot_for_channel(catalog.CATALOG_CHANNEL), links)
+        rendered = original(row, bot_for_channel(catalog.CATALOG_CHANNEL), links)
+        lot = str(row.get("lot_id") or "").strip()
+        mid = str(row.get("telegram_message_id") or "").strip()
+        if normalize_channel(catalog.CATALOG_CHANNEL) == SMALL_CHANNEL and lot and mid.isdigit():
+            rendered = rendered.replace(
+                f"start=rent_{lot}",
+                f"start={rent_payload(catalog.CATALOG_CHANNEL, mid, lot)}",
+            )
+        return rendered
 
     mod.build_post = routed_build_post
     mod._channel_bot_routing_applied = True
