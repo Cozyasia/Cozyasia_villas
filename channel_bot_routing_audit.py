@@ -122,10 +122,17 @@ def _rewrite_bot(url: str, expected_bot: str) -> str:
     )
 
 
-def _rewrite_rent_start(url: str, lot: str) -> str:
+def _rent_start(channel: str, message_id: int | str, lot: str) -> str:
+    """Return the start parameter understood by the bot assigned to a channel."""
+    if channel == "arenda_vill_samui" and str(message_id).isdigit():
+        return f"rent_v_a_{int(message_id)}_{lot}"
+    return "rent_" + lot
+
+
+def _rewrite_rent_start(url: str, channel: str, message_id: int | str, lot: str) -> str:
     return re.sub(
         r"([?&]start=)rent_[^&#]+",
-        lambda m: m.group(1) + "rent_" + lot,
+        lambda m: m.group(1) + _rent_start(channel, message_id, lot),
         url,
         count=1,
         flags=re.I,
@@ -241,7 +248,7 @@ def _entity_urls(entities):
     return [str(getattr(e, "url", "") or "") for e in (entities or []) if str(getattr(e, "url", "") or "")]
 
 
-def _rewritten_entities_for_message(msg, expected_bot: str):
+def _rewritten_entities_for_message(msg, channel: str, expected_bot: str):
     """Recompute safe URL-only edits for one message."""
     text = getattr(msg, "message", None) or ""
     lot = _trusted_lot_from_message(msg)
@@ -257,14 +264,15 @@ def _rewritten_entities_for_message(msg, expected_bot: str):
                 changed = True
             sm = re.search(r"[?&]start=([^&#]+)", url)
             start_value = sm.group(1) if sm else ""
-            if lot and start_value.lower().startswith("rent_") and start_value.lower() != ("rent_" + lot).lower():
-                cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), lot)
+            expected_start = _rent_start(channel, int(msg.id), lot) if lot else ""
+            if expected_start and start_value.lower().startswith("rent_") and start_value.lower() != expected_start.lower():
+                cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), channel, int(msg.id), lot)
                 changed = True
         new_entities.append(cloned)
     return text, lot, new_entities, changed
 
 
-def _verify_routes(msg, expected_bot: str):
+def _verify_routes(msg, channel: str, expected_bot: str):
     lot = _trusted_lot_from_message(msg)
     bad = []
     for url in _entity_urls(getattr(msg, "entities", None) or []):
@@ -275,8 +283,9 @@ def _verify_routes(msg, expected_bot: str):
             bad.append({"kind": "bot", "url": url, "expected_bot": expected_bot})
         sm = re.search(r"[?&]start=([^&#]+)", url)
         start = sm.group(1) if sm else ""
-        if lot and start.lower().startswith("rent_") and start.lower() != ("rent_" + lot).lower():
-            bad.append({"kind": "rent", "url": url, "expected_start": "rent_" + lot})
+        expected_start = _rent_start(channel, int(msg.id), lot) if lot else ""
+        if expected_start and start.lower().startswith("rent_") and start.lower() != expected_start.lower():
+            bad.append({"kind": "rent", "url": url, "expected_start": expected_start})
     return bad
 
 
@@ -289,13 +298,13 @@ async def _try_album_caption_fallback(client, channel: str, msg, expected_bot: s
     nearby = await client.get_messages(channel, ids=ids)
     candidates = _group_caption_candidates(nearby, grouped_id, int(msg.id))
     for candidate in candidates:
-        text, _lot, new_entities, changed = _rewritten_entities_for_message(candidate, expected_bot)
+        text, _lot, new_entities, changed = _rewritten_entities_for_message(candidate, channel, expected_bot)
         if not changed:
             continue
         try:
             await _edit_with_retry(client, channel, int(candidate.id), text, new_entities)
             verify = await client.get_messages(channel, ids=int(candidate.id))
-            if _verify_routes(verify, expected_bot):
+            if _verify_routes(verify, channel, expected_bot):
                 continue
             return int(candidate.id)
         except MessageIdInvalidError:
@@ -356,7 +365,7 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
                         changed = True
 
                 if lot and start_value.lower().startswith("rent_"):
-                    expected_start = "rent_" + lot
+                    expected_start = _rent_start(channel, int(msg.id), lot)
                     if start_value.lower() != expected_start.lower():
                         deep_link_mismatches.append({
                             "id": int(msg.id),
@@ -366,7 +375,7 @@ async def _audit_channel(client, catalog, channel: str, expected_bot: str, do_mi
                             "url": url,
                         })
                         if can_migrate and type(ent).__name__ == "MessageEntityTextUrl":
-                            cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), lot)
+                            cloned.url = _rewrite_rent_start(str(getattr(cloned, "url", "") or url), channel, int(msg.id), lot)
                             changed = True
             new_entities.append(cloned)
 
