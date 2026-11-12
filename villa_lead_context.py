@@ -174,14 +174,14 @@ def resolve_lot_post_links(identity: LeadLotIdentity) -> List[str]:
         column = channel_columns[identity.channel]
         exact = [
             _value(row, column) for row in rows
-            if re.search(r"/" + re.escape(identity.message_id) + r"(?:\\?|$|/)", _value(row, column))
+            if re.search(r"/" + re.escape(identity.message_id) + r"(?:\?|$|/)", _value(row, column))
         ]
         exact = list(dict.fromkeys(url for url in exact if _valid_telegram_post(url)))
         if len(exact) == 1:
             return exact
         if len(exact) > 1:
             return []
-    lot_ids = [part.strip() for part in re.split(r"[,;\\s]+", identity.lot_id) if part.strip()]
+    lot_ids = [part.strip() for part in re.split(r"[,;\s]+", identity.lot_id) if part.strip()]
     result = []
     for lot in lot_ids:
         urls = set()
@@ -200,4 +200,4 @@ def resolve_lot_post_links(identity: LeadLotIdentity) -> List[str]:
 
 
 def _valid_telegram_post(url: str) -> bool:
-    return bool(re.fullmatch(r"https://t\\.me/(?:arenda_vill_samui|samuirental)/\\d+(?:\\?single)?", url, re.I))
+    return bool(re.fullmatch(r"https://t\.me/(?:arenda_vill_samui|samuirental)/\d+(?:\?single)?", url, re.I))
