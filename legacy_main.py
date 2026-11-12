@@ -487,6 +487,7 @@ async def q_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🆕 Новая заявка Villa bot\n"
                 f"Клиент: {ud.get('name','')} | TG: {mention}\n"
                 f"Лот: {lots}\n"
+                f"{lot_post_text}\n"
                 f"Тип: {ud.get('type','')}\n"
                 f"Район(ы): {ud.get('district','')}\n"
                 f"Бюджет (THB): {ud.get('budget','')}\n"
