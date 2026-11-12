@@ -446,6 +446,18 @@ async def q_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     )
 
+    lot_post_links = villa_lead_context.resolve_lot_post_links(
+        villa_lead_context.LeadLotIdentity(
+            lot_id=lots,
+            channel=ud.get("lot_channel", ""),
+            message_id=ud.get("lot_message_id", ""),
+        )
+    )
+    lot_post_text = (
+        "\\n".join(f"🔗 Открыть лот в Telegram: {url}" for url in lot_post_links)
+        if lot_post_links else "🔗 Ссылка на лот: не найдена в реестре"
+    )
+
     summary = (
         "📝 Заявка сформирована и передана менеджеру.\n\n"
         f"Лот: {lots}\n"
