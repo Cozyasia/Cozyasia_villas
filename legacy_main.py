@@ -454,7 +454,7 @@ async def q_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     )
     lot_post_text = (
-        "\\n".join(f"🔗 Открыть лот в Telegram: {url}" for url in lot_post_links)
+        "\n".join(f"🔗 Открыть лот в Telegram: {url}" for url in lot_post_links)
         if lot_post_links else "🔗 Ссылка на лот: не найдена в реестре"
     )
 
