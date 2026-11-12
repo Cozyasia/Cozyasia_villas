@@ -156,3 +156,48 @@ def resolve_owner_context(identity: LeadLotIdentity) -> OwnerContext:
             "требует проверки",
         )
     return _missing(f"Лот {identity.lot_id} не найден в едином реестре.")
+
+def resolve_lot_post_links(identity: LeadLotIdentity) -> List[str]:
+    """Return only verified Telegram post URLs from the shared registry.
+
+    Prefer an exact channel/message match. Legacy lot numbers are accepted
+    only when the matching registry rows yield one unambiguous URL.
+    """
+    rows = _load_registry_rows()
+    if not rows:
+        return []
+    channel_columns = {
+        SMALL_CHANNEL: "Ссылка — малый канал",
+        LARGE_CHANNEL: "Ссылка — большой канал",
+    }
+    if identity.channel in channel_columns and identity.message_id:
+        column = channel_columns[identity.channel]
+        exact = [
+            _value(row, column) for row in rows
+            if re.search(r"/" + re.escape(identity.message_id) + r"(?:\\?|$|/)", _value(row, column))
+        ]
+        exact = list(dict.fromkeys(url for url in exact if _valid_telegram_post(url)))
+        if len(exact) == 1:
+            return exact
+        if len(exact) > 1:
+            return []
+    lot_ids = [part.strip() for part in re.split(r"[,;\\s]+", identity.lot_id) if part.strip()]
+    result = []
+    for lot in lot_ids:
+        urls = set()
+        for row in rows:
+            for channel, column in channel_columns.items():
+                if identity.channel and channel != identity.channel:
+                    continue
+                number_column = "№ лота — малый канал" if channel == SMALL_CHANNEL else "№ лота — большой канал"
+                if _value(row, number_column).casefold() == lot.casefold():
+                    url = _value(row, column)
+                    if _valid_telegram_post(url):
+                        urls.add(url)
+        if len(urls) == 1:
+            result.append(next(iter(urls)))
+    return list(dict.fromkeys(result))
+
+
+def _valid_telegram_post(url: str) -> bool:
+    return bool(re.fullmatch(r"https://t\\.me/(?:arenda_vill_samui|samuirental)/\\d+(?:\\?single)?", url, re.I))
