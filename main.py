@@ -148,6 +148,9 @@ def _fb_living_pool_20261104_mode() -> bool:
 def _villa_tree_20261104_mode() -> bool:
     return os.getenv("PUBLISH_VILLA_TREE_20261104", "0").strip().lower() in {"1", "true", "yes", "on"}
 
+def _renu_three_20261122_mode() -> bool:
+    return os.getenv("PUBLISH_RENU_THREE_20261122", "0").strip().lower() in {"1", "true", "yes", "on"}
+
 
 
 def _fb_1204731598512685_mode() -> bool:
@@ -203,6 +206,9 @@ elif __name__ == "__main__" and _fb_1741918390416111_mode():
 elif __name__ == "__main__" and _villa_tree_20261104_mode():
     import publish_villa_tree_20261104 as _villa_tree_20261104
     _villa_tree_20261104.run_service_mode()
+elif __name__ == "__main__" and _renu_three_20261122_mode():
+    import publish_renu_three_20261122 as _renu_three_20261122
+    _renu_three_20261122.run_service_mode()
 elif __name__ == "__main__" and _fb_living_pool_20261104_mode():
     import publish_fb_living_pool_villas_20261104 as _fb_living_pool_20261104
     _fb_living_pool_20261104.run_service_mode()
