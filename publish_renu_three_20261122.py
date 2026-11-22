@@ -130,6 +130,8 @@ def caption_html(item: dict) -> str:
     lot = item["lot"]
     rent_url = channel_publication_policy.bot_url(CHANNEL, f"rent_{lot}")
     search_url = channel_publication_policy.bot_url(CHANNEL, "search")
+    daily = item["daily"].split(" (≈")[0]
+    weekly = item["weekly"].split(" (≈")[0]
     deposit = f"\n🔐 Депозит: {item['deposit']}" if item.get("deposit") else ""
     electricity = f"\n⚡ Электричество: {item['electricity']}" if item.get("electricity") else ""
     return f"""🏡 <b>ЛОТ №{lot}</b>
@@ -142,8 +144,8 @@ def caption_html(item: dict) -> str:
 
 💰 <b>УСЛОВИЯ АРЕНДЫ</b>
 💵 Цена: {item['price']}
-💵 {item['daily']}
-💵 {item['weekly']}{deposit}{electricity}
+💵 {daily}
+💵 {weekly}{deposit}{electricity}
 📅 Доступность и точные даты — по запросу
 🌿 Сезонная скидка при месячном проживании рассчитывается индивидуально после запроса
 
