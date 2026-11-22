@@ -149,6 +149,7 @@ def caption_html(item: dict) -> str:
 
 📸 <a href="{item['site']}"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО</b></a>
 
+📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
 👉 <a href="{rent_url}"><b>ЖМИ ЗДЕСЬ</b></a> 👈
 
 
