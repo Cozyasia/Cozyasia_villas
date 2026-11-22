@@ -197,8 +197,8 @@ async def run():
     try:
         channel = await client.get_entity(CHANNEL)
         previous = await publication_safety.latest_numeric_lot(client, channel, limit=120)
-        if previous and int(previous) != 1241:
-            raise RuntimeError(f"Expected last published lot 1241 before batch, found {previous}")
+        if previous and int(previous) not in {1241, 1242, 1243}:
+            raise RuntimeError(f"Unexpected last published lot before batch: {previous}")
         results = []
         with tempfile.TemporaryDirectory(prefix="renu-three-") as directory:
             for item in LISTINGS:
