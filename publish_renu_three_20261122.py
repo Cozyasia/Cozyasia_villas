@@ -138,19 +138,17 @@ def caption_html(item: dict) -> str:
 <blockquote>{item['title']} — {item['description']}</blockquote>
 
 📍 Район: {item['district']}
-🏠 Тип: вилла
 {item['features']}
 
 💰 <b>УСЛОВИЯ АРЕНДЫ</b>
 💵 Цена: {item['price']}
 💵 {item['daily']}
 💵 {item['weekly']}{deposit}{electricity}
-📅 Тарифы по календарю источника; доступность и точные даты подтверждаются по запросу
+📅 Доступность и точные даты — по запросу
 🌿 Сезонная скидка при месячном проживании рассчитывается индивидуально после запроса
 
 📸 <a href="{item['site']}"><b>ДОПОЛНИТЕЛЬНЫЕ ФОТО</b></a>
 
-📝 <b>ОСТАВИТЬ ЗАЯВКУ</b>
 👉 <a href="{rent_url}"><b>ЖМИ ЗДЕСЬ</b></a> 👈
 
 
